@@ -64,8 +64,12 @@ void setup() {
 
   Serial.begin(115200);
   // put your setup code here, to run once:
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
+
+  WiFi.disconnect(true);
+  WiFi.setAutoConnect(false);
+    //WiFi.mode(WIFI_STA);
+  WiFi.setPhyMode(WIFI_PHY_MODE_11B);
+  WiFi.begin("mikesnet", "springchicken");
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
