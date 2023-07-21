@@ -15,6 +15,9 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <TFT_ILI9163C.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
 
 #define BLACK   0x0000
 #define BLUE    0x001F
@@ -36,6 +39,25 @@
 
 
 #include <BlynkSimpleEsp8266.h>
+const int oneWireBus2 = 12;
+int Ra=25;
+int R1= 80 + Ra;
+int ECPin= A0;
+int ECGround=9;
+int ECPower =10;
+float PPMconversion=0.5; 
+float TemperatureCoef = 0.0187;
+float K=2.88;
+float EC=0;
+float EC25 =0;
+int ppm =0;
+float raw= 0;
+float Vin= 5;
+float Vdrop= 0;
+float Rc= 0;
+float buffer=0;
+OneWire oneWire2(oneWireBus2);
+DallasTemperature sensors2(&oneWire2);
 
 const char* ssid = "mikesnet";
 const char* password = "springchicken";
@@ -48,10 +70,40 @@ char auth[] = "pO--Yj8ksH2fjJLMW6yW9trkHBhd9-wc"; //BLYNK
 
 AsyncWebServer server(80);
 Adafruit_BME280 bme; // I2C
-float abshumBME, tempBME, presBME, humBME;
+float abshumBME, tempBME, presBME, humBME, tempprobe;
 unsigned long millisBlynk = 0;
 unsigned long millisTFT = 0;
 int firstvalue = 1;
+
+WidgetTerminal terminal(V10);
+
+BLYNK_WRITE(V10)
+{
+    if (String("help") == param.asStr()) 
+    {
+    terminal.println("==List of available commands:==");
+    terminal.println("wifi");
+    terminal.println("tds");
+     terminal.println("==End of list.==");
+    }
+        if (String("wifi") == param.asStr()) 
+    {
+        terminal.print("Connected to: ");
+        terminal.println(ssid);
+        terminal.print("IP address:");
+        terminal.println(WiFi.localIP());
+        terminal.print("Signal strength: ");
+        terminal.println(WiFi.RSSI());
+    }
+
+     if (String("tds") == param.asStr()) {
+            GetEC();         
+      PrintReadings();
+     }
+    
+    terminal.flush();
+
+}
 
 TFT_ILI9163C display = TFT_ILI9163C(__CS,__A0, __DC);
 
@@ -75,11 +127,18 @@ void setup() {
     delay(500);
     Serial.print(".");
   }
+      sensors2.begin();
+    sensors2.requestTemperatures(); 
   Serial.println("");
   Serial.print("Connected to ");
   Serial.println(ssid);
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+      terminal.println("**********COSTELLO***********");
+    terminal.print("Connected to ");
+    terminal.println(ssid);
+    terminal.print("IP address: ");
+    terminal.println(WiFi.localIP());
   display.clearScreen();
     Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
     Blynk.connect();
@@ -89,6 +148,8 @@ void setup() {
                 Adafruit_BME280::SAMPLING_X1, // pressure
                 Adafruit_BME280::SAMPLING_X1, // humidity
                 Adafruit_BME280::FILTER_OFF   );
+                
+    terminal.flush();
                   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/plain", "I am Costello");
   });
@@ -107,13 +168,17 @@ Blynk.run();
         tempBME = (bme.readTemperature() + tempoffset);
         presBME = (bme.readPressure() / 100.0F);
         humBME = bme.readHumidity();
+                sensors2.requestTemperatures(); 
+        tempprobe = sensors2.getTempCByIndex(0);
         abshumBME = (6.112 * pow(2.71828, ((17.67 * tempBME)/(tempBME + 243.5))) * humBME * 2.1674)/(273.15 + tempBME);
         millisBlynk = millis();
-        
+                GetEC();         
+      PrintReadings();
         Blynk.virtualWrite(V1, presBME);
         Blynk.virtualWrite(V2, tempBME);
         Blynk.virtualWrite(V3, humBME);
         Blynk.virtualWrite(V4, abshumBME);
+        if (tempprobe > 0) {Blynk.virtualWrite(V5, tempprobe);}
     }
 
     if  (millis() - millisTFT >= 10000)  //if it's been 30 seconds OR we just booted up, skip the 30 second wait
@@ -159,3 +224,59 @@ Blynk.run();
 
     }
 }
+
+
+void GetEC(){
+ 
+        sensors2.requestTemperatures();
+                sensors2.requestTemperatures();
+                tempprobe = sensors2.getTempCByIndex(0);
+//*********Reading Temperature Of Solution *******************//
+
+
+ 
+ 
+//************Estimates Resistance of Liquid ****************//
+digitalWrite(ECPower,HIGH);
+raw= analogRead(ECPin);
+raw= analogRead(ECPin);// This is not a mistake, First reading will be low beause if charged a capacitor
+digitalWrite(ECPower,LOW);
+ 
+ 
+ 
+ 
+//***************** Converts to EC **************************//
+Vdrop= (Vin*raw)/1024.0;
+Rc=(Vdrop*R1)/(Vin-Vdrop);
+Rc=Rc-Ra; //acounting for Digital Pin Resitance
+EC = 1000/(Rc*K);
+ 
+ 
+//*************Compensating For Temperaure********************//
+EC25  =  EC/ (1+ TemperatureCoef*(tempprobe-25.0));
+ppm=(EC25)*(PPMconversion*1000);
+ 
+ 
+;}
+//************************** End OF EC Function ***************************//
+ 
+ 
+ 
+ 
+//***This Loop Is called From Main Loop- Prints to serial usefull info ***//
+void PrintReadings(){
+terminal.print("Rc: ");
+terminal.print(Rc);
+terminal.print(" EC: ");
+terminal.print(EC25);
+terminal.print(" Simens  ");
+terminal.print(ppm);
+terminal.print(" ppm  ");
+terminal.print(tempprobe);
+terminal.println(" *C ");
+ terminal.flush();
+ Blynk.virtualWrite(V6, Rc);
+ Blynk.virtualWrite(V7, EC25);
+ Blynk.virtualWrite(V8, ppm);
+ 
+};
