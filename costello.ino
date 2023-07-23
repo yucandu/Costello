@@ -1,22 +1,35 @@
+#include <Arduino.h>
+#include <ESP8266WiFi.h>
 #include <Adafruit_BusIO_Register.h>
 #include <Adafruit_I2CDevice.h>
 #include <Adafruit_I2CRegister.h>
 #include <Adafruit_SPIDevice.h>
-
 #include <Adafruit_BME280.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_GFX.h>
+#include <TFT_ILI9163C.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
-
+#include <BlynkSimpleEsp8266.h>
 #include <Wire.h>
 
-#include <Adafruit_Sensor.h>
 
 #include <SPI.h>
-#include <Adafruit_GFX.h>
-#include <TFT_ILI9163C.h>
+
 #include <OneWire.h>
 #include <DallasTemperature.h>
+
+// GPIO where the DS18B20 is connected to
+const int oneWireBus = 12;     
+
+// Setup a oneWire instance to communicate with any OneWire devices
+OneWire oneWire(oneWireBus);
+
+// Pass our oneWire reference to Dallas Temperature sensor 
+DallasTemperature sensors(&oneWire);
+
+
 
 
 #define BLACK   0x0000
@@ -35,15 +48,16 @@
 #define __A0 0
 
 
-#include <ESP8266WiFi.h>
 
 
-#include <BlynkSimpleEsp8266.h>
-const int oneWireBus2 = 12;
+int numberOfDevices;
+DeviceAddress tempDeviceAddress; 
+
+
 int Ra=25;
 int R1= 80 + Ra;
 int ECPin= A0;
-int ECGround=9;
+
 int ECPower =10;
 float PPMconversion=0.5; 
 float TemperatureCoef = 0.0187;
@@ -56,8 +70,6 @@ float Vin= 5;
 float Vdrop= 0;
 float Rc= 0;
 float buffer=0;
-OneWire oneWire2(oneWireBus2);
-DallasTemperature sensors2(&oneWire2);
 
 const char* ssid = "mikesnet";
 const char* password = "springchicken";
@@ -115,11 +127,11 @@ void setup() {
   display.print("Please wait, connecting to wifi...");
 
   Serial.begin(115200);
+  sensors.begin();
   // put your setup code here, to run once:
 
-  WiFi.disconnect(true);
-  WiFi.setAutoConnect(false);
-    //WiFi.mode(WIFI_STA);
+
+  WiFi.mode(WIFI_STA);
   WiFi.setPhyMode(WIFI_PHY_MODE_11B);
   WiFi.begin("mikesnet", "springchicken");
 
@@ -127,21 +139,51 @@ void setup() {
     delay(500);
     Serial.print(".");
   }
-      sensors2.begin();
-    sensors2.requestTemperatures(); 
+        pinMode(ECPin,INPUT);
+ pinMode(ECPower,OUTPUT);//Setting pin for sourcing current
+ delay(1000);
+      sensors.begin();
+      delay(1000);
+    sensors.requestTemperatures(); 
+    delay(1000);
+    sensors.requestTemperatures(); 
   Serial.println("");
   Serial.print("Connected to ");
   Serial.println(ssid);
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-      terminal.println("**********COSTELLO***********");
+      Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
+    Blynk.connect();
+      terminal.println("**********COSTELLOOOO***********");
     terminal.print("Connected to ");
     terminal.println(ssid);
     terminal.print("IP address: ");
     terminal.println(WiFi.localIP());
+      
+      numberOfDevices = sensors.getDeviceCount();
+  // locate devices on the bus
+  terminal.print("Locating devices...");
+  terminal.print("Found ");
+  terminal.print(numberOfDevices, DEC);
+  terminal.println(" devices.");
+    // Loop through each device, print out address
+  for(int i=0;i<numberOfDevices; i++){
+    // Search the wire for address
+    if(sensors.getAddress(tempDeviceAddress, i)){
+      terminal.print("Found device ");
+      terminal.print(i, DEC);
+      terminal.print(" with address: ");
+      printAddress(tempDeviceAddress);
+      terminal.println();
+    } else {
+      terminal.print("Found ghost device at ");
+      terminal.print(i, DEC);
+      terminal.print(" but could not detect address. Check power and cabling");
+    }
+  }
+  
   display.clearScreen();
-    Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
-    Blynk.connect();
+
     bme.begin(0x76);
  bme.setSampling(Adafruit_BME280::MODE_FORCED,
                Adafruit_BME280::SAMPLING_X1, // temperature
@@ -168,8 +210,8 @@ Blynk.run();
         tempBME = (bme.readTemperature() + tempoffset);
         presBME = (bme.readPressure() / 100.0F);
         humBME = bme.readHumidity();
-                sensors2.requestTemperatures(); 
-        tempprobe = sensors2.getTempCByIndex(0);
+                sensors.requestTemperatures(); 
+        tempprobe = sensors.getTempCByIndex(0);
         abshumBME = (6.112 * pow(2.71828, ((17.67 * tempBME)/(tempBME + 243.5))) * humBME * 2.1674)/(273.15 + tempBME);
         millisBlynk = millis();
                 GetEC();         
@@ -202,8 +244,15 @@ Blynk.run();
         humBME = bme.readHumidity();
         abshumBME = (6.112 * pow(2.71828, ((17.67 * tempBME)/(tempBME + 243.5))) * humBME * 2.1674)/(273.15 + tempBME);
         millisTFT = millis();
-        display.clearScreen();
-  display.setCursor(5, 5);
+        doDisplay();
+
+
+    }
+}
+
+void doDisplay() {
+  display.clearScreen();
+    display.setCursor(5, 5);
   display.setTextSize(2);
   display.setCursor(5, 5);
   display.setTextColor(RED);
@@ -221,16 +270,14 @@ Blynk.run();
     display.setTextColor(GREEN);
   display.print("P: ");
   display.println(presBME);
-
-    }
 }
 
 
 void GetEC(){
  
-        sensors2.requestTemperatures();
-                sensors2.requestTemperatures();
-                tempprobe = sensors2.getTempCByIndex(0);
+        sensors.requestTemperatures();
+                sensors.requestTemperatures();
+                tempprobe = sensors.getTempCByIndex(0);
 //*********Reading Temperature Of Solution *******************//
 
 
@@ -257,7 +304,7 @@ EC25  =  EC/ (1+ TemperatureCoef*(tempprobe-25.0));
 ppm=(EC25)*(PPMconversion*1000);
  
  
-;}
+}
 //************************** End OF EC Function ***************************//
  
  
@@ -279,4 +326,11 @@ terminal.println(" *C ");
  Blynk.virtualWrite(V7, EC25);
  Blynk.virtualWrite(V8, ppm);
  
-};
+}
+
+void printAddress(DeviceAddress deviceAddress) {
+  for (uint8_t i = 0; i < 8; i++){
+    if (deviceAddress[i] < 16) terminal.print("0");
+      terminal.print(deviceAddress[i], HEX);
+  }
+}
