@@ -13,7 +13,7 @@
 #include <AsyncElegantOTA.h>
 #include <BlynkSimpleEsp8266.h>
 #include <Wire.h>
-
+#include "time.h"
 
 #include <SPI.h>
 
@@ -30,7 +30,9 @@ OneWire oneWire(oneWireBus);
 DallasTemperature sensors(&oneWire);
 
 
-
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = -14400;   //Replace with your GMT offset (seconds)
+const int   daylightOffset_sec = 0;  //Replace with your daylight offset (seconds)
 
 #define BLACK   0x0000
 #define BLUE    0x001F
@@ -96,6 +98,7 @@ BLYNK_WRITE(V10)
     terminal.println("==List of available commands:==");
     terminal.println("wifi");
     terminal.println("tds");
+    terminal.println("temp");
      terminal.println("==End of list.==");
     }
         if (String("wifi") == param.asStr()) 
@@ -112,6 +115,9 @@ BLYNK_WRITE(V10)
             GetEC();         
       PrintReadings();
      }
+     if (String("temp") == param.asStr()) {
+        printtemp();
+     }
     
     terminal.flush();
 
@@ -121,13 +127,17 @@ TFT_ILI9163C display = TFT_ILI9163C(__CS,__A0, __DC);
 
 
 void setup() {
-    display.begin();
-    display.clearScreen();
-  display.setCursor(0,0);
-  display.print("Please wait, connecting to wifi...");
+        sensors.begin();
+      delay(1000);
+    sensors.requestTemperatures(); 
+    delay(1000);
+    sensors.requestTemperatures(); 
+
+  //display.setCursor(0,0);
+  //display.print("Please wait, connecting to wifi...");
 
   Serial.begin(115200);
-  sensors.begin();
+
   // put your setup code here, to run once:
 
 
@@ -139,14 +149,9 @@ void setup() {
     delay(500);
     Serial.print(".");
   }
-        pinMode(ECPin,INPUT);
- pinMode(ECPower,OUTPUT);//Setting pin for sourcing current
+
  delay(1000);
-      sensors.begin();
-      delay(1000);
-    sensors.requestTemperatures(); 
-    delay(1000);
-    sensors.requestTemperatures(); 
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   Serial.println("");
   Serial.print("Connected to ");
   Serial.println(ssid);
@@ -155,6 +160,7 @@ void setup() {
       Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
     Blynk.connect();
       terminal.println("**********COSTELLOOOO***********");
+      printLocalTime();
     terminal.print("Connected to ");
     terminal.println(ssid);
     terminal.print("IP address: ");
@@ -181,8 +187,9 @@ void setup() {
       terminal.print(" but could not detect address. Check power and cabling");
     }
   }
-  
-  display.clearScreen();
+      display.begin();
+    display.clearScreen();
+
 
     bme.begin(0x76);
  bme.setSampling(Adafruit_BME280::MODE_FORCED,
@@ -214,8 +221,8 @@ Blynk.run();
         tempprobe = sensors.getTempCByIndex(0);
         abshumBME = (6.112 * pow(2.71828, ((17.67 * tempBME)/(tempBME + 243.5))) * humBME * 2.1674)/(273.15 + tempBME);
         millisBlynk = millis();
-                GetEC();         
-      PrintReadings();
+               // GetEC();         
+              // PrintReadings();
         Blynk.virtualWrite(V1, presBME);
         Blynk.virtualWrite(V2, tempBME);
         Blynk.virtualWrite(V3, humBME);
@@ -334,3 +341,28 @@ void printAddress(DeviceAddress deviceAddress) {
       terminal.print(deviceAddress[i], HEX);
   }
 }
+
+void printLocalTime()
+{
+  time_t rawtime;
+  struct tm * timeinfo;
+  time (&rawtime);
+  timeinfo = localtime (&rawtime);
+  terminal.print("-");
+  terminal.print(asctime(timeinfo));
+  terminal.print(" - ");
+  terminal.flush();
+}
+
+void printtemp() {
+  display.endPushData();
+  delay(500);
+  sensors.requestTemperatures();
+  sensors.requestTemperatures();
+  tempprobe = sensors.getTempCByIndex(0);
+  terminal.print(tempprobe);
+  terminal.println(" *C ");
+  terminal.flush();
+  display.sleepMode(false);
+}
+
