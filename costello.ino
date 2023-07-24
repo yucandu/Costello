@@ -7,7 +7,7 @@
 #include <Adafruit_BME280.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_GFX.h>
-#include <TFT_ILI9163C.h>
+#include "TFT_ILI9163C.h"
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
@@ -16,12 +16,16 @@
 #include "time.h"
 
 #include <SPI.h>
+#include <ILI9163.h>
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
 // GPIO where the DS18B20 is connected to
 const int oneWireBus = 12;     
+#define DS18B20_PIN   12
+int c_temp;
+char c_buffer[9], f_buffer[9];
 
 // Setup a oneWire instance to communicate with any OneWire devices
 OneWire oneWire(oneWireBus);
@@ -48,7 +52,9 @@ const int   daylightOffset_sec = 0;  //Replace with your daylight offset (second
 #define __CS 2
 #define __DC 16
 #define __A0 0
-
+#define TFT_CS 2
+#define TFT_DC  16
+#define TFT_RST 0
 
 
 
@@ -99,6 +105,7 @@ BLYNK_WRITE(V10)
     terminal.println("wifi");
     terminal.println("tds");
     terminal.println("temp");
+    terminal.println("temp2");
      terminal.println("==End of list.==");
     }
         if (String("wifi") == param.asStr()) 
@@ -118,23 +125,24 @@ BLYNK_WRITE(V10)
      if (String("temp") == param.asStr()) {
         printtemp();
      }
-    
+         if (String("temp2") == param.asStr()) {
+        printtemp2();
+     }
     terminal.flush();
 
 }
 
-TFT_ILI9163C display = TFT_ILI9163C(__CS,__A0, __DC);
+TFT_ILI9163C display = TFT_ILI9163C(__CS, __A0, __DC);
 
 
 void setup() {
         sensors.begin();
+        sensors.setResolution(9);
       delay(1000);
     sensors.requestTemperatures(); 
     delay(1000);
     sensors.requestTemperatures(); 
 
-  //display.setCursor(0,0);
-  //display.print("Please wait, connecting to wifi...");
 
   Serial.begin(115200);
 
@@ -159,7 +167,7 @@ void setup() {
   Serial.println(WiFi.localIP());
       Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
     Blynk.connect();
-      terminal.println("**********COSTELLOOOO***********");
+      terminal.println("**********COSTELLOOOO v0.12***********");
       printLocalTime();
     terminal.print("Connected to ");
     terminal.println(ssid);
@@ -188,7 +196,12 @@ void setup() {
     }
   }
       display.begin();
-    display.clearScreen();
+      display.setBitrate(1000000);
+   display.clearScreen();
+     display.setTextColor(YELLOW);
+      display.setTextSize(2);
+  //display.setCursor(0,0);
+  display.println("Please wait, connecting to wifi...");
 
 
     bme.begin(0x76);
@@ -355,14 +368,124 @@ void printLocalTime()
 }
 
 void printtemp() {
-  display.endPushData();
-  delay(500);
   sensors.requestTemperatures();
   sensors.requestTemperatures();
   tempprobe = sensors.getTempCByIndex(0);
+  tempprobe = sensors.getTempCByIndex(0);
+  float tempprobe1 = sensors.getTempCByIndex(1);
   terminal.print(tempprobe);
+  terminal.print(", ");
+  terminal.print(tempprobe1);
   terminal.println(" *C ");
   terminal.flush();
-  display.sleepMode(false);
 }
 
+
+bool ds18b20_start()
+{
+  bool ret = 0;
+  digitalWrite(DS18B20_PIN, LOW);  // send reset pulse to the DS18B20 sensor
+  pinMode(DS18B20_PIN, OUTPUT);
+  delayMicroseconds(500);          // wait 500 us
+  pinMode(DS18B20_PIN, INPUT);
+  delayMicroseconds(100);          // wait to read the DS18B20 sensor response
+  if (!digitalRead(DS18B20_PIN))
+  {
+    ret = 1;                  // DS18B20 sensor is present
+    delayMicroseconds(400);   // wait 400 us
+  }
+  return(ret);
+}
+ 
+void ds18b20_write_bit(bool value)
+{
+  digitalWrite(DS18B20_PIN, LOW);
+  pinMode(DS18B20_PIN, OUTPUT);
+  delayMicroseconds(2);
+  digitalWrite(DS18B20_PIN, value);
+  delayMicroseconds(80);
+  pinMode(DS18B20_PIN, INPUT);
+  delayMicroseconds(2);
+}
+ 
+void ds18b20_write_byte(byte value)
+{
+  byte i;
+  for(i = 0; i < 8; i++)
+    ds18b20_write_bit(bitRead(value, i));
+}
+ 
+bool ds18b20_read_bit(void)
+{
+  bool value;
+  digitalWrite(DS18B20_PIN, LOW);
+  pinMode(DS18B20_PIN, OUTPUT);
+  delayMicroseconds(2);
+  pinMode(DS18B20_PIN, INPUT);
+  delayMicroseconds(5);
+  value = digitalRead(DS18B20_PIN);
+  delayMicroseconds(100);
+  return value;
+}
+ 
+byte ds18b20_read_byte(void)
+{
+  byte i, value;
+  for(i = 0; i < 8; i++)
+    bitWrite(value, i, ds18b20_read_bit());
+  return value;
+}
+ 
+bool ds18b20_read(int *raw_temp_value)
+{
+  if (!ds18b20_start())  // send start pulse
+    return(0);
+  ds18b20_write_byte(0xCC);   // send skip ROM command
+  ds18b20_write_byte(0x44);   // send start conversion command
+  while(ds18b20_read_byte() == 0);  // wait for conversion complete
+  if (!ds18b20_start())             // send start pulse
+    return(0);                      // return 0 if error
+  ds18b20_write_byte(0xCC);         // send skip ROM command
+  ds18b20_write_byte(0xBE);         // send read command
+ 
+  // read temperature LSB byte and store it on raw_temp_value LSB byte
+  *raw_temp_value = ds18b20_read_byte();
+  // read temperature MSB byte and store it on raw_temp_value MSB byte
+  *raw_temp_value |= (unsigned int)(ds18b20_read_byte() << 8);
+ 
+  return(1);  // OK --> return 1
+}
+
+void printtemp2() {
+    if( ds18b20_read(&c_temp) ) {  
+    // read from DS18B20 sensor OK
+ 
+    // calculate temperature in °F (actual temperature in °F = f_temp/160)
+    // °F = °C x 9/5 + 32
+    int32_t f_temp = (int32_t)c_temp * 90/5 + 5120;  // 5120 = 32 x 16 x 10
+ 
+    if(c_temp < 0) {   // if temperature < 0 °C
+    c_temp = abs(c_temp);  // absolute value
+    sprintf(c_buffer, "-%02u.%04u", c_temp/16, (c_temp & 0x0F) * 625);
+  }
+  else {
+    if (c_temp/16 >= 100)    // if temperature >= 100.0 °C
+      sprintf(c_buffer, "%03u.%04u", c_temp/16, (c_temp & 0x0F) * 625);
+    else
+      sprintf(c_buffer, " %02u.%04u", c_temp/16, (c_temp & 0x0F) * 625);
+  }
+ 
+  if(f_temp < 0) {   // if temperature < 0 °F
+    f_temp = abs(f_temp);  // absolute value
+    sprintf(f_buffer, "-%02u.%04u", (uint16_t)f_temp/160, (uint16_t)(f_temp*1000/16 % 10000));
+  }
+  else {
+    if (f_temp/160 >= 100)    // if temperature >= 100.0 °F
+      sprintf(f_buffer, "%03u.%04u", (uint16_t)f_temp/160, (uint16_t)(f_temp*1000/16 % 10000));
+    else
+      sprintf(f_buffer, " %02u.%04u", (uint16_t)f_temp/160, (uint16_t)(f_temp*1000/16 % 10000));
+  }
+  terminal.println(c_buffer);
+  terminal.flush();
+}
+}
