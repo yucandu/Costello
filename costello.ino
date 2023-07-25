@@ -16,7 +16,6 @@
 #include "time.h"
 
 #include <SPI.h>
-#include <ILI9163.h>
 #include <Adafruit_ADS1X15.h>
 Adafruit_ADS1115 ads;
 
@@ -26,7 +25,7 @@ const int oneWireBus = 12;
 int c_temp;
 char c_buffer[9], f_buffer[9];
 
-
+int gasRead;
 
 
 
@@ -44,6 +43,8 @@ const int   daylightOffset_sec = 0;  //Replace with your daylight offset (second
 #define YELLOW  0xFFE0  
 #define WHITE   0xFFFF
 
+#define LIGHTBLUE 0x739F
+
 
 
 #define __CS 2
@@ -59,6 +60,7 @@ const int   daylightOffset_sec = 0;  //Replace with your daylight offset (second
   float adc0, adc1, adc2, adc3;
   float volts0, volts1, volts2, volts3;
 
+int measureDelay = 0;
 int Ra=25;
 int R1= 1000 + Ra;
 int ECPin= A0;
@@ -66,7 +68,7 @@ int ECGround = 16;
 int ECPower =10;
 float PPMconversion=0.5; 
 float TemperatureCoef = 0.0187;
-float K=13;
+float K=2;
 float EC=0;
 float EC25 =0;
 float EC252 = 0;
@@ -124,14 +126,26 @@ BLYNK_WRITE(V10)
             GetEC();         
       PrintReadings();
      }
-     if (String("k10") == param.asStr()) {
-        K=10;
+     if (String("md50") == param.asStr()) {
+        measureDelay=50;
      }
-     if (String("k15") == param.asStr()) {
-        K=15;
+     if (String("md100") == param.asStr()) {
+        measureDelay=100;
      }
-     if (String("k12") == param.asStr()) {
-        K=12;
+     if (String("md500") == param.asStr()) {
+        measureDelay=500;
+     }
+          if (String("k1") == param.asStr()) {
+            terminal.println("k=1");
+        K=1;
+     }
+     if (String("k1.5") == param.asStr()) {
+      terminal.println("k=1.5");
+        K=1.5;
+     }
+     if (String("k2.5") == param.asStr()) {
+      terminal.println("k=2.5");
+         K=2.5;
      }
      if (String("temp") == param.asStr()) {
         printtemp();
@@ -157,7 +171,7 @@ void setup() {
      display.setTextColor(YELLOW);
       display.setTextSize(1);
   //display.setCursor(0,0);
-  display.println("Please wait, connecting to wifi...");
+  display.print("Please wait, connecting to wifi...");
 
   WiFi.mode(WIFI_STA);
   WiFi.setPhyMode(WIFI_PHY_MODE_11B);
@@ -177,7 +191,7 @@ void setup() {
   Serial.println(WiFi.localIP());
       Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
     Blynk.connect();
-      terminal.println("**********COSTELLOOOO v0.4***********");
+      terminal.println("**********COSTELLOOOO v0.5***********");
       printLocalTime();
     terminal.print("Connected to ");
     terminal.println(ssid);
@@ -213,6 +227,11 @@ void setup() {
   else {terminal.println("ADS initialized");}
   terminal.println("Startup complete.");
    terminal.flush();
+   display.clearScreen();
+     pinMode(ECPower,OUTPUT);//Setting pin for sourcing current
+  pinMode(ECGround,OUTPUT);//setting pin for sinking current
+  digitalWrite(ECGround,LOW);//We can leave the ground connected permanantly
+ 
 }
 
 void loop() {
@@ -231,7 +250,7 @@ Blynk.run();
         millisBlynk = millis();
                 GetEC();         
               // PrintReadings();
-              tempprobe = readDStemp();
+        gasRead = ads.readADC_SingleEnded(3);
         Blynk.virtualWrite(V1, presBME);
         Blynk.virtualWrite(V2, tempBME);
         Blynk.virtualWrite(V3, humBME);
@@ -240,9 +259,10 @@ Blynk.run();
          Blynk.virtualWrite(V6, raw);
  Blynk.virtualWrite(V7, ppm);
  Blynk.virtualWrite(V8, ppm2);
+  Blynk.virtualWrite(V9, gasRead);
     }
 
-    if  (millis() - millisTFT >= 10000)  //if it's been 30 seconds OR we just booted up, skip the 30 second wait
+    if  (millis() - millisTFT >= 5000)  //if it's been 30 seconds OR we just booted up, skip the 30 second wait
     {
   /*display.setTextColor(BLACK);  
   display.setCursor(5, 5);
@@ -270,7 +290,8 @@ Blynk.run();
 }
 
 void doDisplay() {
-  display.clearScreen();
+  //display.clearScreen();
+  display.fillRect(5,5,120,70,BLACK);
     display.setCursor(5, 5);
   display.setTextSize(2);
   display.setCursor(5, 5);
@@ -279,10 +300,10 @@ void doDisplay() {
   display.print(tempBME);
   display.print((char)247);
   display.println("C");
-  display.setTextColor(CYAN);
+  display.setTextColor(LIGHTBLUE);
   display.print("RH: ");
   display.print(humBME);
-  display.println("%");
+  display.print("%");
   display.setTextColor(CYAN);
   display.print("AH: ");
   display.println(abshumBME);
@@ -298,28 +319,29 @@ void GetEC(){
          //       sensors.requestTemperatures();
        //         tempprobe = sensors.getTempCByIndex(0);
 //*********Reading Temperature Of Solution *******************//
+display.setCursor(5, 70);
+  display.setTextColor(YELLOW);
+  display.print("READING...");
 
-
- 
+ tempprobe = readDStemp();
  
 //************Estimates Resistance of Liquid ****************//
-  pinMode(ECPower, OUTPUT);
-  pinMode(ECGround, OUTPUT);
-  digitalWrite(ECGround,LOW);
   digitalWrite(ECPower,HIGH);
+   delay(measureDelay);
 raw = ads.readADC_SingleEnded(0);
 raw = ads.readADC_SingleEnded(0);// This is not a mistake, First reading will be low beause if charged a capacitor
 digitalWrite(ECPower,LOW);
-  pinMode(ECPower, INPUT);
-  pinMode(ECGround, INPUT);
 
-
+display.setCursor(5, 70);
+  display.setTextColor(BLACK);
+  display.print("READING...");
   
-   tempprobe = readDStemp();
+   
  
  
 //***************** Converts to EC **************************//
-Vdrop= (Vin*raw)/65536.0;
+//Vdrop= (Vin*raw)/32768.0;
+Vdrop = ads.computeVolts(raw);
 Rc=(Vdrop*R1)/(Vin-Vdrop);
 Rc=Rc-Ra; //acounting for Digital Pin Resitance
 EC = 1000/(Rc*K);
@@ -330,6 +352,9 @@ EC25  =  EC/ (1+ TemperatureCoef*(tempprobe-25.0));
 EC252  =  EC/ (1+ TemperatureCoef*(25-25.0));
 ppm=(EC25)*(PPMconversion*1000);
 ppm2=(EC252)*(PPMconversion*1000);
+
+
+
  
  
 }
@@ -340,10 +365,13 @@ ppm2=(EC252)*(PPMconversion*1000);
  
 //***This Loop Is called From Main Loop- Prints to serial usefull info ***//
 void PrintReadings(){
+terminal.println("");
 terminal.print("Raw: ");
 terminal.print(raw);
 terminal.print(" EC: ");
 terminal.print(EC25);
+terminal.print(" Vdrop:  ");
+terminal.print(Vdrop);
 terminal.print(" PPM:  ");
 terminal.print(ppm);
 terminal.print(" Temp:  ");
@@ -370,16 +398,14 @@ void printLocalTime()
   terminal.flush();
 }
 
+
+
 void printtemp() {
-  pinMode(ECPower, OUTPUT);
-  pinMode(ECGround, OUTPUT);
-  digitalWrite(ECGround,LOW);
   digitalWrite(ECPower,HIGH);
+  delay(measureDelay);
 adc0 = ads.readADC_SingleEnded(0);
 adc0 = ads.readADC_SingleEnded(0);// This is not a mistake, First reading will be low beause if charged a capacitor
 digitalWrite(ECPower,LOW);
-  pinMode(ECPower, INPUT);
-  pinMode(ECGround, INPUT);
 
  
   volts0 = ads.computeVolts(adc0);
@@ -392,7 +418,12 @@ digitalWrite(ECPower,LOW);
 }
 
 void printtemp2() {
-  terminal.println("no");
+  gasRead = ads.readADC_SingleEnded(3);
+  volts3 = ads.computeVolts(gasRead)
+  terminal.print("Gas value: ");
+  terminal.println(gasRead);
+  terminal.print("Volts: ");
+  terminal.println(volts3);
   terminal.flush();
 }
 
