@@ -218,7 +218,7 @@ void setup() {
   server.begin();
   terminal.println("HTTP server started");
   terminal.flush();
- // ads.setGain(GAIN_ONE);
+  ads.setGain(GAIN_TWO);
     if (!ads.begin())
   {
     terminal.println("Failed to initialize ADS.");
@@ -419,7 +419,7 @@ digitalWrite(ECPower,LOW);
 
 void printtemp2() {
   gasRead = ads.readADC_SingleEnded(3);
-  volts3 = ads.computeVolts(gasRead)
+  volts3 = ads.computeVolts(gasRead);
   terminal.print("Gas value: ");
   terminal.println(gasRead);
   terminal.print("Volts: ");
