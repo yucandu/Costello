@@ -17,12 +17,14 @@
 
 #include <SPI.h>
 #include <ILI9163.h>
-
+#include <Adafruit_ADS1X15.h>
+Adafruit_ADS1115 ads;
 
 // GPIO where the DS18B20 is connected to
 const int oneWireBus = 12;     
-
-
+#define DS18B20_PIN 12
+int c_temp;
+char c_buffer[9], f_buffer[9];
 
 
 
@@ -54,21 +56,24 @@ const int   daylightOffset_sec = 0;  //Replace with your daylight offset (second
 
 
 
-
+  float adc0, adc1, adc2, adc3;
+  float volts0, volts1, volts2, volts3;
 
 int Ra=25;
-int R1= 80 + Ra;
+int R1= 1000 + Ra;
 int ECPin= A0;
-
+int ECGround = 16;
 int ECPower =10;
 float PPMconversion=0.5; 
 float TemperatureCoef = 0.0187;
-float K=2.88;
+float K=13;
 float EC=0;
 float EC25 =0;
+float EC252 = 0;
 int ppm =0;
+int ppm2 =0;
 float raw= 0;
-float Vin= 5;
+float Vin= 3.3;
 float Vdrop= 0;
 float Rc= 0;
 float buffer=0;
@@ -119,6 +124,15 @@ BLYNK_WRITE(V10)
             GetEC();         
       PrintReadings();
      }
+     if (String("k10") == param.asStr()) {
+        K=10;
+     }
+     if (String("k15") == param.asStr()) {
+        K=15;
+     }
+     if (String("k12") == param.asStr()) {
+        K=12;
+     }
      if (String("temp") == param.asStr()) {
         printtemp();
      }
@@ -138,7 +152,12 @@ TFT_ILI9163C display = TFT_ILI9163C(__CS, __A0, __DC);
 void setup() {
 
   Serial.begin(115200);
-
+      display.begin();
+   display.clearScreen();
+     display.setTextColor(YELLOW);
+      display.setTextSize(1);
+  //display.setCursor(0,0);
+  display.println("Please wait, connecting to wifi...");
 
   WiFi.mode(WIFI_STA);
   WiFi.setPhyMode(WIFI_PHY_MODE_11B);
@@ -146,7 +165,7 @@ void setup() {
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.print(".");
+    display.print(".");
   }
 
  delay(1000);
@@ -158,20 +177,15 @@ void setup() {
   Serial.println(WiFi.localIP());
       Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
     Blynk.connect();
-      terminal.println("**********COSTELLOOOO v0.13***********");
+      terminal.println("**********COSTELLOOOO v0.4***********");
       printLocalTime();
     terminal.print("Connected to ");
     terminal.println(ssid);
     terminal.print("IP address: ");
     terminal.println(WiFi.localIP());
-      
+    terminal.flush();  
   
-      display.begin();
-   display.clearScreen();
-     display.setTextColor(YELLOW);
-      display.setTextSize(2);
-  //display.setCursor(0,0);
-  display.println("Please wait, connecting to wifi...");
+
 
 
     bme.begin(0x76);
@@ -181,7 +195,7 @@ void setup() {
                 Adafruit_BME280::SAMPLING_X1, // humidity
                 Adafruit_BME280::FILTER_OFF   );
                 
-    terminal.flush();
+   
                   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/plain", "I am Costello");
   });
@@ -189,6 +203,16 @@ void setup() {
   AsyncElegantOTA.begin(&server);    // Start ElegantOTA
   server.begin();
   terminal.println("HTTP server started");
+  terminal.flush();
+ // ads.setGain(GAIN_ONE);
+    if (!ads.begin())
+  {
+    terminal.println("Failed to initialize ADS.");
+    while (1);
+  }
+  else {terminal.println("ADS initialized");}
+  terminal.println("Startup complete.");
+   terminal.flush();
 }
 
 void loop() {
@@ -205,13 +229,17 @@ Blynk.run();
 
         abshumBME = (6.112 * pow(2.71828, ((17.67 * tempBME)/(tempBME + 243.5))) * humBME * 2.1674)/(273.15 + tempBME);
         millisBlynk = millis();
-               // GetEC();         
+                GetEC();         
               // PrintReadings();
+              tempprobe = readDStemp();
         Blynk.virtualWrite(V1, presBME);
         Blynk.virtualWrite(V2, tempBME);
         Blynk.virtualWrite(V3, humBME);
         Blynk.virtualWrite(V4, abshumBME);
-        if (tempprobe > 0) {Blynk.virtualWrite(V5, tempprobe);}
+        Blynk.virtualWrite(V5, tempprobe);
+         Blynk.virtualWrite(V6, raw);
+ Blynk.virtualWrite(V7, ppm);
+ Blynk.virtualWrite(V8, ppm2);
     }
 
     if  (millis() - millisTFT >= 10000)  //if it's been 30 seconds OR we just booted up, skip the 30 second wait
@@ -251,7 +279,7 @@ void doDisplay() {
   display.print(tempBME);
   display.print((char)247);
   display.println("C");
-  display.setTextColor(BLUE);
+  display.setTextColor(CYAN);
   display.print("RH: ");
   display.print(humBME);
   display.println("%");
@@ -259,8 +287,8 @@ void doDisplay() {
   display.print("AH: ");
   display.println(abshumBME);
     display.setTextColor(GREEN);
-  display.print("P: ");
-  display.println(presBME);
+  display.print("PPM: ");
+  display.println(ppm);
 }
 
 
@@ -275,16 +303,23 @@ void GetEC(){
  
  
 //************Estimates Resistance of Liquid ****************//
-digitalWrite(ECPower,HIGH);
-raw= analogRead(ECPin);
-raw= analogRead(ECPin);// This is not a mistake, First reading will be low beause if charged a capacitor
+  pinMode(ECPower, OUTPUT);
+  pinMode(ECGround, OUTPUT);
+  digitalWrite(ECGround,LOW);
+  digitalWrite(ECPower,HIGH);
+raw = ads.readADC_SingleEnded(0);
+raw = ads.readADC_SingleEnded(0);// This is not a mistake, First reading will be low beause if charged a capacitor
 digitalWrite(ECPower,LOW);
- 
- 
+  pinMode(ECPower, INPUT);
+  pinMode(ECGround, INPUT);
+
+
+  
+   tempprobe = readDStemp();
  
  
 //***************** Converts to EC **************************//
-Vdrop= (Vin*raw)/1024.0;
+Vdrop= (Vin*raw)/65536.0;
 Rc=(Vdrop*R1)/(Vin-Vdrop);
 Rc=Rc-Ra; //acounting for Digital Pin Resitance
 EC = 1000/(Rc*K);
@@ -292,7 +327,9 @@ EC = 1000/(Rc*K);
  
 //*************Compensating For Temperaure********************//
 EC25  =  EC/ (1+ TemperatureCoef*(tempprobe-25.0));
+EC252  =  EC/ (1+ TemperatureCoef*(25-25.0));
 ppm=(EC25)*(PPMconversion*1000);
+ppm2=(EC252)*(PPMconversion*1000);
  
  
 }
@@ -303,19 +340,20 @@ ppm=(EC25)*(PPMconversion*1000);
  
 //***This Loop Is called From Main Loop- Prints to serial usefull info ***//
 void PrintReadings(){
-terminal.print("Rc: ");
-terminal.print(Rc);
+terminal.print("Raw: ");
+terminal.print(raw);
 terminal.print(" EC: ");
 terminal.print(EC25);
-terminal.print(" Simens  ");
+terminal.print(" PPM:  ");
 terminal.print(ppm);
-terminal.print(" ppm  ");
+terminal.print(" Temp:  ");
 terminal.print(tempprobe);
-terminal.println(" *C ");
+terminal.println("°C ");
  terminal.flush();
- Blynk.virtualWrite(V6, Rc);
- Blynk.virtualWrite(V7, EC25);
- Blynk.virtualWrite(V8, ppm);
+ Blynk.virtualWrite(V6, raw);
+ Blynk.virtualWrite(V7, ppm);
+ Blynk.virtualWrite(V8, ppm2);
+
  
 }
 
@@ -333,12 +371,23 @@ void printLocalTime()
 }
 
 void printtemp() {
-  tempprobe = 696969;
-  float tempprobe1 = 696969;
-  terminal.print(tempprobe);
-  terminal.print(", ");
-  terminal.print(tempprobe1);
-  terminal.println(" *C ");
+  pinMode(ECPower, OUTPUT);
+  pinMode(ECGround, OUTPUT);
+  digitalWrite(ECGround,LOW);
+  digitalWrite(ECPower,HIGH);
+adc0 = ads.readADC_SingleEnded(0);
+adc0 = ads.readADC_SingleEnded(0);// This is not a mistake, First reading will be low beause if charged a capacitor
+digitalWrite(ECPower,LOW);
+  pinMode(ECPower, INPUT);
+  pinMode(ECGround, INPUT);
+
+ 
+  volts0 = ads.computeVolts(adc0);
+
+ 
+
+  terminal.println("-----------------------------------------------------------");
+  terminal.print("AIN0: "); terminal.print(adc0); terminal.print("  "); terminal.print(volts0); terminal.println("V");
   terminal.flush();
 }
 
@@ -348,10 +397,121 @@ void printtemp2() {
 }
 
 
-void printtemp3(){
 
-  
+
+bool ds18b20_start()
+{
+  bool ret = 0;
+  digitalWrite(DS18B20_PIN, LOW);  // send reset pulse to the DS18B20 sensor
+  pinMode(DS18B20_PIN, OUTPUT);
+  delayMicroseconds(500);          // wait 500 us
+  pinMode(DS18B20_PIN, INPUT);
+  delayMicroseconds(100);          // wait to read the DS18B20 sensor response
+  if (!digitalRead(DS18B20_PIN))
+  {
+    ret = 1;                  // DS18B20 sensor is present
+    delayMicroseconds(400);   // wait 400 us
+  }
+  return(ret);
 }
 
+void ds18b20_write_bit(bool value)
+{
+  digitalWrite(DS18B20_PIN, LOW);
+  pinMode(DS18B20_PIN, OUTPUT);
+  delayMicroseconds(2);
+  digitalWrite(DS18B20_PIN, value);
+  delayMicroseconds(80);
+  pinMode(DS18B20_PIN, INPUT);
+  delayMicroseconds(2);
+}
 
+void ds18b20_write_byte(byte value)
+{
+  byte i;
+  for(i = 0; i < 8; i++)
+    ds18b20_write_bit(bitRead(value, i));
+}
 
+bool ds18b20_read_bit(void)
+{
+  bool value;
+  digitalWrite(DS18B20_PIN, LOW);
+  pinMode(DS18B20_PIN, OUTPUT);
+  delayMicroseconds(2);
+  pinMode(DS18B20_PIN, INPUT);
+  delayMicroseconds(5);
+  value = digitalRead(DS18B20_PIN);
+  delayMicroseconds(100);
+  return value;
+}
+
+uint16_t ds18b20_read_byte(void)
+ {  
+ byte i;
+ uint16_t value=0;
+  for(i = 0; i < 12 ; i++)   
+  bitWrite(value, i, ds18b20_read_bit());
+  //terminal.print(value);
+  return value;
+}
+
+bool ds18b20_read(int *raw_temp_value)
+{
+  if (!ds18b20_start())  // send start pulse
+    return(0);
+  ds18b20_write_byte(0xCC);   // send skip ROM command
+  ds18b20_write_byte(0x44);   // send start conversion command
+  while(ds18b20_read_byte() == 0);  // wait for conversion complete
+  if (!ds18b20_start())             // send start pulse
+    return(0);                      // return 0 if error
+  ds18b20_write_byte(0xCC);         // send skip ROM command
+  ds18b20_write_byte(0xBE);         // send read command
+
+  // read temperature LSB byte and store it on raw_temp_value LSB byte
+  *raw_temp_value = ds18b20_read_byte();
+  // read temperature MSB byte and store it on raw_temp_value MSB byte
+  *raw_temp_value |= (unsigned int)(ds18b20_read_byte() << 8);
+
+  return(1);  // OK --> return 1
+}
+
+void printtemp3(){
+  tempprobe = readDStemp();
+terminal.print(tempprobe);
+terminal.println("°C");
+}
+
+float readDStemp(void) {
+       if( ds18b20_read(&c_temp) ) {  
+      // read from DS18B20 sensor OK
+  
+      // calculate temperature in °F (actual temperature in °F = f_temp/160)
+      // °F = °C x 9/5 + 32
+      int32_t f_temp = (int32_t)c_temp * 90/5 + 5120;  // 5120 = 32 x 16 x 10
+  
+      if(c_temp < 0) {   // if temperature < 0 °C
+      c_temp = abs(c_temp);  // absolute value
+      sprintf(c_buffer, "-%02u.%04u", c_temp/16, (c_temp & 0x0F) * 625);
+    }
+    else {
+      if (c_temp/16 >= 100)    // if temperature >= 100.0 °C
+        sprintf(c_buffer, "%03u.%04u", c_temp/16, (c_temp & 0x0F) * 625);
+      else
+        sprintf(c_buffer, " %02u.%04u", c_temp/16, (c_temp & 0x0F) * 625);
+    }
+  
+    if(f_temp < 0) {   // if temperature < 0 °F
+      f_temp = abs(f_temp);  // absolute value
+      sprintf(f_buffer, "-%02u.%04u", (uint16_t)f_temp/160, (uint16_t)(f_temp*1000/16 % 10000));
+    }
+    else {
+      if (f_temp/160 >= 100)    // if temperature >= 100.0 °F
+        sprintf(f_buffer, "%03u.%04u", (uint16_t)f_temp/160, (uint16_t)(f_temp*1000/16 % 10000));
+      else
+        sprintf(f_buffer, " %02u.%04u", (uint16_t)f_temp/160, (uint16_t)(f_temp*1000/16 % 10000));
+    }
+return atof(c_buffer);
+  }
+  else return -69.69;
+}
