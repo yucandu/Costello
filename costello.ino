@@ -18,20 +18,15 @@
 #include <SPI.h>
 #include <ILI9163.h>
 
-#include <OneWire.h>
-#include <DallasTemperature.h>
 
 // GPIO where the DS18B20 is connected to
 const int oneWireBus = 12;     
-#define DS18B20_PIN   12
-int c_temp;
-char c_buffer[9], f_buffer[9];
 
-// Setup a oneWire instance to communicate with any OneWire devices
-OneWire oneWire(oneWireBus);
 
-// Pass our oneWire reference to Dallas Temperature sensor 
-DallasTemperature sensors(&oneWire);
+
+
+
+
 
 
 const char* ntpServer = "pool.ntp.org";
@@ -58,8 +53,7 @@ const int   daylightOffset_sec = 0;  //Replace with your daylight offset (second
 
 
 
-int numberOfDevices;
-DeviceAddress tempDeviceAddress; 
+
 
 
 int Ra=25;
@@ -95,6 +89,8 @@ unsigned long millisBlynk = 0;
 unsigned long millisTFT = 0;
 int firstvalue = 1;
 
+
+
 WidgetTerminal terminal(V10);
 
 BLYNK_WRITE(V10)
@@ -106,6 +102,7 @@ BLYNK_WRITE(V10)
     terminal.println("tds");
     terminal.println("temp");
     terminal.println("temp2");
+    terminal.println("temp3");
      terminal.println("==End of list.==");
     }
         if (String("wifi") == param.asStr()) 
@@ -128,6 +125,9 @@ BLYNK_WRITE(V10)
          if (String("temp2") == param.asStr()) {
         printtemp2();
      }
+              if (String("temp3") == param.asStr()) {
+        printtemp3();
+     }
     terminal.flush();
 
 }
@@ -136,17 +136,8 @@ TFT_ILI9163C display = TFT_ILI9163C(__CS, __A0, __DC);
 
 
 void setup() {
-        sensors.begin();
-        sensors.setResolution(9);
-      delay(1000);
-    sensors.requestTemperatures(); 
-    delay(1000);
-    sensors.requestTemperatures(); 
-
 
   Serial.begin(115200);
-
-  // put your setup code here, to run once:
 
 
   WiFi.mode(WIFI_STA);
@@ -167,36 +158,15 @@ void setup() {
   Serial.println(WiFi.localIP());
       Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
     Blynk.connect();
-      terminal.println("**********COSTELLOOOO v0.12***********");
+      terminal.println("**********COSTELLOOOO v0.13***********");
       printLocalTime();
     terminal.print("Connected to ");
     terminal.println(ssid);
     terminal.print("IP address: ");
     terminal.println(WiFi.localIP());
       
-      numberOfDevices = sensors.getDeviceCount();
-  // locate devices on the bus
-  terminal.print("Locating devices...");
-  terminal.print("Found ");
-  terminal.print(numberOfDevices, DEC);
-  terminal.println(" devices.");
-    // Loop through each device, print out address
-  for(int i=0;i<numberOfDevices; i++){
-    // Search the wire for address
-    if(sensors.getAddress(tempDeviceAddress, i)){
-      terminal.print("Found device ");
-      terminal.print(i, DEC);
-      terminal.print(" with address: ");
-      printAddress(tempDeviceAddress);
-      terminal.println();
-    } else {
-      terminal.print("Found ghost device at ");
-      terminal.print(i, DEC);
-      terminal.print(" but could not detect address. Check power and cabling");
-    }
-  }
+  
       display.begin();
-      display.setBitrate(1000000);
    display.clearScreen();
      display.setTextColor(YELLOW);
       display.setTextSize(2);
@@ -218,20 +188,21 @@ void setup() {
 
   AsyncElegantOTA.begin(&server);    // Start ElegantOTA
   server.begin();
-  Serial.println("HTTP server started");
+  terminal.println("HTTP server started");
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
 Blynk.run();
+
+
     if  (millis() - millisBlynk >= 30000)  //if it's been 30 seconds OR we just booted up, skip the 30 second wait
     {
       bme.takeForcedMeasurement();
         tempBME = (bme.readTemperature() + tempoffset);
         presBME = (bme.readPressure() / 100.0F);
         humBME = bme.readHumidity();
-                sensors.requestTemperatures(); 
-        tempprobe = sensors.getTempCByIndex(0);
+
         abshumBME = (6.112 * pow(2.71828, ((17.67 * tempBME)/(tempBME + 243.5))) * humBME * 2.1674)/(273.15 + tempBME);
         millisBlynk = millis();
                // GetEC();         
@@ -295,9 +266,9 @@ void doDisplay() {
 
 void GetEC(){
  
-        sensors.requestTemperatures();
-                sensors.requestTemperatures();
-                tempprobe = sensors.getTempCByIndex(0);
+//        sensors.requestTemperatures();
+         //       sensors.requestTemperatures();
+       //         tempprobe = sensors.getTempCByIndex(0);
 //*********Reading Temperature Of Solution *******************//
 
 
@@ -348,12 +319,6 @@ terminal.println(" *C ");
  
 }
 
-void printAddress(DeviceAddress deviceAddress) {
-  for (uint8_t i = 0; i < 8; i++){
-    if (deviceAddress[i] < 16) terminal.print("0");
-      terminal.print(deviceAddress[i], HEX);
-  }
-}
 
 void printLocalTime()
 {
@@ -368,11 +333,8 @@ void printLocalTime()
 }
 
 void printtemp() {
-  sensors.requestTemperatures();
-  sensors.requestTemperatures();
-  tempprobe = sensors.getTempCByIndex(0);
-  tempprobe = sensors.getTempCByIndex(0);
-  float tempprobe1 = sensors.getTempCByIndex(1);
+  tempprobe = 696969;
+  float tempprobe1 = 696969;
   terminal.print(tempprobe);
   terminal.print(", ");
   terminal.print(tempprobe1);
@@ -380,112 +342,16 @@ void printtemp() {
   terminal.flush();
 }
 
-
-bool ds18b20_start()
-{
-  bool ret = 0;
-  digitalWrite(DS18B20_PIN, LOW);  // send reset pulse to the DS18B20 sensor
-  pinMode(DS18B20_PIN, OUTPUT);
-  delayMicroseconds(500);          // wait 500 us
-  pinMode(DS18B20_PIN, INPUT);
-  delayMicroseconds(100);          // wait to read the DS18B20 sensor response
-  if (!digitalRead(DS18B20_PIN))
-  {
-    ret = 1;                  // DS18B20 sensor is present
-    delayMicroseconds(400);   // wait 400 us
-  }
-  return(ret);
-}
- 
-void ds18b20_write_bit(bool value)
-{
-  digitalWrite(DS18B20_PIN, LOW);
-  pinMode(DS18B20_PIN, OUTPUT);
-  delayMicroseconds(2);
-  digitalWrite(DS18B20_PIN, value);
-  delayMicroseconds(80);
-  pinMode(DS18B20_PIN, INPUT);
-  delayMicroseconds(2);
-}
- 
-void ds18b20_write_byte(byte value)
-{
-  byte i;
-  for(i = 0; i < 8; i++)
-    ds18b20_write_bit(bitRead(value, i));
-}
- 
-bool ds18b20_read_bit(void)
-{
-  bool value;
-  digitalWrite(DS18B20_PIN, LOW);
-  pinMode(DS18B20_PIN, OUTPUT);
-  delayMicroseconds(2);
-  pinMode(DS18B20_PIN, INPUT);
-  delayMicroseconds(5);
-  value = digitalRead(DS18B20_PIN);
-  delayMicroseconds(100);
-  return value;
-}
- 
-byte ds18b20_read_byte(void)
-{
-  byte i, value;
-  for(i = 0; i < 8; i++)
-    bitWrite(value, i, ds18b20_read_bit());
-  return value;
-}
- 
-bool ds18b20_read(int *raw_temp_value)
-{
-  if (!ds18b20_start())  // send start pulse
-    return(0);
-  ds18b20_write_byte(0xCC);   // send skip ROM command
-  ds18b20_write_byte(0x44);   // send start conversion command
-  while(ds18b20_read_byte() == 0);  // wait for conversion complete
-  if (!ds18b20_start())             // send start pulse
-    return(0);                      // return 0 if error
-  ds18b20_write_byte(0xCC);         // send skip ROM command
-  ds18b20_write_byte(0xBE);         // send read command
- 
-  // read temperature LSB byte and store it on raw_temp_value LSB byte
-  *raw_temp_value = ds18b20_read_byte();
-  // read temperature MSB byte and store it on raw_temp_value MSB byte
-  *raw_temp_value |= (unsigned int)(ds18b20_read_byte() << 8);
- 
-  return(1);  // OK --> return 1
-}
-
 void printtemp2() {
-    if( ds18b20_read(&c_temp) ) {  
-    // read from DS18B20 sensor OK
- 
-    // calculate temperature in °F (actual temperature in °F = f_temp/160)
-    // °F = °C x 9/5 + 32
-    int32_t f_temp = (int32_t)c_temp * 90/5 + 5120;  // 5120 = 32 x 16 x 10
- 
-    if(c_temp < 0) {   // if temperature < 0 °C
-    c_temp = abs(c_temp);  // absolute value
-    sprintf(c_buffer, "-%02u.%04u", c_temp/16, (c_temp & 0x0F) * 625);
-  }
-  else {
-    if (c_temp/16 >= 100)    // if temperature >= 100.0 °C
-      sprintf(c_buffer, "%03u.%04u", c_temp/16, (c_temp & 0x0F) * 625);
-    else
-      sprintf(c_buffer, " %02u.%04u", c_temp/16, (c_temp & 0x0F) * 625);
-  }
- 
-  if(f_temp < 0) {   // if temperature < 0 °F
-    f_temp = abs(f_temp);  // absolute value
-    sprintf(f_buffer, "-%02u.%04u", (uint16_t)f_temp/160, (uint16_t)(f_temp*1000/16 % 10000));
-  }
-  else {
-    if (f_temp/160 >= 100)    // if temperature >= 100.0 °F
-      sprintf(f_buffer, "%03u.%04u", (uint16_t)f_temp/160, (uint16_t)(f_temp*1000/16 % 10000));
-    else
-      sprintf(f_buffer, " %02u.%04u", (uint16_t)f_temp/160, (uint16_t)(f_temp*1000/16 % 10000));
-  }
-  terminal.println(c_buffer);
+  terminal.println("no");
   terminal.flush();
 }
+
+
+void printtemp3(){
+
+  
 }
+
+
+
