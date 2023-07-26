@@ -14,6 +14,12 @@
 #include <BlynkSimpleEsp8266.h>
 #include <Wire.h>
 #include "time.h"
+#include <Average.h>
+
+Average<float> gasAvg(30);
+Average<float> tempAvg(30);
+Average<float> humAvg(30);
+
 
 #include <SPI.h>
 #include <Adafruit_ADS1X15.h>
@@ -94,6 +100,7 @@ Adafruit_BME280 bme; // I2C
 float abshumBME, tempBME, presBME, humBME, tempprobe;
 unsigned long millisBlynk = 0;
 unsigned long millisTFT = 0;
+unsigned long millisAvg = 0;
 int firstvalue = 1;
 
 
@@ -239,13 +246,13 @@ void loop() {
 Blynk.run();
 
 
-    if  (millis() - millisBlynk >= 30000)  //if it's been 30 seconds OR we just booted up, skip the 30 second wait
+    if  (millis() - millisBlynk >= 30000)  //if it's been 30 seconds
     {
       bme.takeForcedMeasurement();
-        tempBME = (bme.readTemperature() + tempoffset);
+        
         presBME = (bme.readPressure() / 100.0F);
-        humBME = bme.readHumidity();
-
+        humBME = humAvg.mean();
+        tempBME = tempAvg.mean();
         abshumBME = (6.112 * pow(2.71828, ((17.67 * tempBME)/(tempBME + 243.5))) * humBME * 2.1674)/(273.15 + tempBME);
         millisBlynk = millis();
                 GetEC();         
@@ -259,34 +266,29 @@ Blynk.run();
          Blynk.virtualWrite(V6, raw);
  Blynk.virtualWrite(V7, ppm);
  Blynk.virtualWrite(V8, ppm2);
-  Blynk.virtualWrite(V9, gasRead);
+  Blynk.virtualWrite(V9, gasAvg.mean());
+  humBME = bme.readHumidity();
+  tempBME = (bme.readTemperature() + tempoffset);
     }
 
-    if  (millis() - millisTFT >= 3000)  //if it's been 30 seconds OR we just booted up, skip the 30 second wait
+    if  (millis() - millisTFT >= 3000)  //if it's been 3 seconds
     {
-  /*display.setTextColor(BLACK);  
-  display.setCursor(5, 5);
-  display.setTextSize(2);
-  display.print("T: ");
-  display.print(tempBME);
-  display.println("°C");
-  display.print("RH: ");
-  display.print(humBME);
-  display.println("%");
-  display.print("AH: ");
-  display.println(abshumBME);
-  display.print("P: ");
-  display.println(presBME);*/
       bme.takeForcedMeasurement();
-      
         tempBME = (bme.readTemperature() + tempoffset);
         presBME = (bme.readPressure() / 100.0F);
         humBME = bme.readHumidity();
         abshumBME = (6.112 * pow(2.71828, ((17.67 * tempBME)/(tempBME + 243.5))) * humBME * 2.1674)/(273.15 + tempBME);
         millisTFT = millis();
         doDisplay();
-
-
+    }
+    
+    if  (millis() - millisAvg >= 1000)  //if it's been 1 second
+    {
+        millisAvg = millis();
+        bme.takeForcedMeasurement();       
+        gasAvg.push(ads.readADC_SingleEnded(3));
+        tempAvg.push(bme.readTemperature() + tempoffset);
+        humAvg.push(bme.readHumidity());
     }
 }
 
