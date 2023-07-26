@@ -262,7 +262,7 @@ Blynk.run();
   Blynk.virtualWrite(V9, gasRead);
     }
 
-    if  (millis() - millisTFT >= 5000)  //if it's been 30 seconds OR we just booted up, skip the 30 second wait
+    if  (millis() - millisTFT >= 3000)  //if it's been 30 seconds OR we just booted up, skip the 30 second wait
     {
   /*display.setTextColor(BLACK);  
   display.setCursor(5, 5);
@@ -278,6 +278,7 @@ Blynk.run();
   display.print("P: ");
   display.println(presBME);*/
       bme.takeForcedMeasurement();
+      
         tempBME = (bme.readTemperature() + tempoffset);
         presBME = (bme.readPressure() / 100.0F);
         humBME = bme.readHumidity();
@@ -291,7 +292,7 @@ Blynk.run();
 
 void doDisplay() {
   //display.clearScreen();
-  display.fillRect(5,5,120,70,BLACK);
+  display.fillRect(27,5,120,86,BLACK);
     display.setCursor(5, 5);
   display.setTextSize(2);
   display.setCursor(5, 5);
@@ -310,6 +311,10 @@ void doDisplay() {
     display.setTextColor(GREEN);
   display.print("PPM: ");
   display.println(ppm);
+  gasRead = ads.readADC_SingleEnded(3);
+      display.setTextColor(WHITE);
+    display.print("GAS: ");
+  display.println(gasRead);
 }
 
 
@@ -319,7 +324,7 @@ void GetEC(){
          //       sensors.requestTemperatures();
        //         tempprobe = sensors.getTempCByIndex(0);
 //*********Reading Temperature Of Solution *******************//
-display.setCursor(5, 70);
+display.setCursor(5, 86);
   display.setTextColor(YELLOW);
   display.print("READING...");
 
@@ -332,7 +337,7 @@ raw = ads.readADC_SingleEnded(0);
 raw = ads.readADC_SingleEnded(0);// This is not a mistake, First reading will be low beause if charged a capacitor
 digitalWrite(ECPower,LOW);
 
-display.setCursor(5, 70);
+display.setCursor(5, 86);
   display.setTextColor(BLACK);
   display.print("READING...");
   
