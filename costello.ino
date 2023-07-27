@@ -16,9 +16,12 @@
 #include "time.h"
 #include <Average.h>
 
-Average<float> gasAvg(30);
-Average<float> tempAvg(30);
-Average<float> humAvg(30);
+Average<float> gasAvg(20);
+Average<float> tempAvg(20);
+Average<float> humAvg(20);
+float tempAvgHolder, humAvgHolder, absHumAvgHolder, tempAvgHolder2, humAvgHolder2;
+
+
 
 
 #include <SPI.h>
@@ -42,14 +45,17 @@ const int   daylightOffset_sec = 0;  //Replace with your daylight offset (second
 
 #define BLACK   0x0000
 #define BLUE    0x001F
+#define LIGHTRED 0xFA9F
+#define LIGHTBLUE 0x9E3F
 #define RED     0xF800
 #define GREEN   0x07E0
 #define CYAN    0x07FF
 #define MAGENTA 0xF81F
 #define YELLOW  0xFFE0  
-#define WHITE   0xFFFF
+#define WHITE   0xFFFF 
+#define GREY 0x8410
 
-#define LIGHTBLUE 0x739F
+
 
 
 
@@ -66,7 +72,7 @@ const int   daylightOffset_sec = 0;  //Replace with your daylight offset (second
   float adc0, adc1, adc2, adc3;
   float volts0, volts1, volts2, volts3;
 
-int measureDelay = 0;
+int measureDelay = 500;
 int Ra=25;
 int R1= 1000 + Ra;
 int ECPin= A0;
@@ -97,7 +103,8 @@ char auth[] = "pO--Yj8ksH2fjJLMW6yW9trkHBhd9-wc"; //BLYNK
 
 AsyncWebServer server(80);
 Adafruit_BME280 bme; // I2C
-float abshumBME, tempBME, presBME, humBME, tempprobe;
+float abshumBME, tempBME, presBME, humBME;
+float tempprobe = 20;
 unsigned long millisBlynk = 0;
 unsigned long millisTFT = 0;
 unsigned long millisAvg = 0;
@@ -198,7 +205,7 @@ void setup() {
   Serial.println(WiFi.localIP());
       Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
     Blynk.connect();
-      terminal.println("**********COSTELLOOOO v0.5***********");
+      terminal.println("**********COSTELLOOOO v0.6***********");
       printLocalTime();
     terminal.print("Connected to ");
     terminal.println(ssid);
@@ -251,9 +258,9 @@ Blynk.run();
       bme.takeForcedMeasurement();
         
         presBME = (bme.readPressure() / 100.0F);
-        humBME = humAvg.mean();
-        tempBME = tempAvg.mean();
-        abshumBME = (6.112 * pow(2.71828, ((17.67 * tempBME)/(tempBME + 243.5))) * humBME * 2.1674)/(273.15 + tempBME);
+        humAvgHolder = humAvg.mean();
+        tempAvgHolder = tempAvg.mean();
+        absHumAvgHolder = (6.112 * pow(2.71828, ((17.67 * tempAvgHolder)/(tempAvgHolder + 243.5))) * tempAvgHolder * 2.1674)/(273.15 + tempAvgHolder);
         millisBlynk = millis();
                 GetEC();         
               // PrintReadings();
@@ -266,12 +273,10 @@ Blynk.run();
          Blynk.virtualWrite(V6, raw);
  Blynk.virtualWrite(V7, ppm);
  Blynk.virtualWrite(V8, ppm2);
-  Blynk.virtualWrite(V9, gasAvg.mean());
-  humBME = bme.readHumidity();
-  tempBME = (bme.readTemperature() + tempoffset);
+  Blynk.virtualWrite(V9, gasRead);
     }
 
-    if  (millis() - millisTFT >= 3000)  //if it's been 3 seconds
+    if  (millis() - millisTFT >= 2500)  //if it's been 3 seconds
     {
       bme.takeForcedMeasurement();
         tempBME = (bme.readTemperature() + tempoffset);
@@ -286,9 +291,11 @@ Blynk.run();
     {
         millisAvg = millis();
         bme.takeForcedMeasurement();       
+        tempAvgHolder2 = (bme.readTemperature() + tempoffset);
+        humAvgHolder2 = bme.readHumidity();
         gasAvg.push(ads.readADC_SingleEnded(3));
-        tempAvg.push(bme.readTemperature() + tempoffset);
-        humAvg.push(bme.readHumidity());
+        if (tempAvgHolder2 > 0) {tempAvg.push(tempAvgHolder2);}
+        if (humAvgHolder2 > 0) {humAvg.push(humAvgHolder2);}
     }
 }
 
@@ -298,22 +305,25 @@ void doDisplay() {
     display.setCursor(5, 5);
   display.setTextSize(2);
   display.setCursor(5, 5);
-  display.setTextColor(RED);
+  display.setTextColor(MAGENTA);
   display.print("T:");
   display.print(tempBME);
   display.print((char)247);
   display.println("C");
-  display.setTextColor(LIGHTBLUE);
+  display.setTextColor(CYAN);
   display.print("RH: ");
   display.print(humBME);
   display.print("%");
-  display.setTextColor(CYAN);
+  display.setTextColor(YELLOW);
   display.print("AH: ");
   display.println(abshumBME);
     display.setTextColor(GREEN);
   display.print("PPM: ");
   display.println(ppm);
+  display.idleMode(true);
   gasRead = ads.readADC_SingleEnded(3);
+  gasRead = ads.readADC_SingleEnded(3);
+  display.idleMode(false);
       display.setTextColor(WHITE);
     display.print("GAS: ");
   display.println(gasRead);
@@ -322,30 +332,38 @@ void doDisplay() {
 
 void GetEC(){
  
-//        sensors.requestTemperatures();
-         //       sensors.requestTemperatures();
-       //         tempprobe = sensors.getTempCByIndex(0);
+
 //*********Reading Temperature Of Solution *******************//
 display.setCursor(5, 86);
-  display.setTextColor(YELLOW);
+  display.setTextColor(GREY);
   display.print("READING...");
-
- tempprobe = readDStemp();
- 
+display.idleMode(true);
+ // tempprobe = readDStemp();
+     wifi_set_opmode(NULL_MODE);
+    system_soft_wdt_stop();
+    ets_intr_lock( ); 
+    noInterrupts();
+    //delay(measureDelay);
 //************Estimates Resistance of Liquid ****************//
   digitalWrite(ECPower,HIGH);
-   delay(measureDelay);
+   
 raw = ads.readADC_SingleEnded(0);
 raw = ads.readADC_SingleEnded(0);// This is not a mistake, First reading will be low beause if charged a capacitor
 digitalWrite(ECPower,LOW);
-
+    interrupts();
+    ets_intr_unlock(); 
+    wifi_set_opmode(STATION_MODE);
+    system_soft_wdt_restart();
+    wifi_station_connect();
+//delay(5000);
+display.idleMode(false);
 display.setCursor(5, 86);
   display.setTextColor(BLACK);
   display.print("READING...");
   
    
  
- 
+
 //***************** Converts to EC **************************//
 //Vdrop= (Vin*raw)/32768.0;
 Vdrop = ads.computeVolts(raw);
@@ -409,7 +427,6 @@ void printLocalTime()
 
 void printtemp() {
   digitalWrite(ECPower,HIGH);
-  delay(measureDelay);
 adc0 = ads.readADC_SingleEnded(0);
 adc0 = ads.readADC_SingleEnded(0);// This is not a mistake, First reading will be low beause if charged a capacitor
 digitalWrite(ECPower,LOW);
