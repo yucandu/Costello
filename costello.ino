@@ -338,7 +338,7 @@ display.setCursor(5, 86);
   display.setTextColor(GREY);
   display.print("READING...");
 display.idleMode(true);
- // tempprobe = readDStemp();
+ tempprobe = readDStemp();
      wifi_set_opmode(NULL_MODE);
     system_soft_wdt_stop();
     ets_intr_lock( ); 
