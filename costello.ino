@@ -196,8 +196,9 @@ void setup() {
     display.print(".");
   }
 
- delay(1000);
+delay(500);
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+     delay(500);
   Serial.println("");
   Serial.print("Connected to ");
   Serial.println(ssid);
@@ -206,11 +207,13 @@ void setup() {
       Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
     Blynk.connect();
       terminal.println("**********COSTELLOOOO v0.6***********");
-      printLocalTime();
+      
     terminal.print("Connected to ");
     terminal.println(ssid);
     terminal.print("IP address: ");
     terminal.println(WiFi.localIP());
+    
+    printLocalTime();
     terminal.flush();  
   
 
@@ -273,7 +276,7 @@ Blynk.run();
          Blynk.virtualWrite(V6, raw);
  Blynk.virtualWrite(V7, ppm);
  Blynk.virtualWrite(V8, ppm2);
-  Blynk.virtualWrite(V9, gasRead);
+  Blynk.virtualWrite(V9, gasAvg.mean());
     }
 
     if  (millis() - millisTFT >= 2500)  //if it's been 3 seconds
@@ -335,14 +338,16 @@ void GetEC(){
 
 //*********Reading Temperature Of Solution *******************//
 display.setCursor(5, 86);
-  display.setTextColor(GREY);
+  display.setTextColor(RED);
   display.print("READING...");
 display.idleMode(true);
  tempprobe = readDStemp();
-     wifi_set_opmode(NULL_MODE);
+ 
+    /* wifi_set_opmode(NULL_MODE);
     system_soft_wdt_stop();
     ets_intr_lock( ); 
-    noInterrupts();
+    noInterrupts();*/
+    
     //delay(measureDelay);
 //************Estimates Resistance of Liquid ****************//
   digitalWrite(ECPower,HIGH);
@@ -350,11 +355,13 @@ display.idleMode(true);
 raw = ads.readADC_SingleEnded(0);
 raw = ads.readADC_SingleEnded(0);// This is not a mistake, First reading will be low beause if charged a capacitor
 digitalWrite(ECPower,LOW);
-    interrupts();
+
+    /*interrupts();
     ets_intr_unlock(); 
     wifi_set_opmode(STATION_MODE);
     system_soft_wdt_restart();
-    wifi_station_connect();
+    wifi_station_connect();*/
+    
 //delay(5000);
 display.idleMode(false);
 display.setCursor(5, 86);
