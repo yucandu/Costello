@@ -403,73 +403,96 @@ float oldtempAvgHolder2, oldhumAvgHolder2, oldabshumBME, oldtempprobe;
 int oldtdsValue, oldgasRead;
 
 void doDisplay() {
-  //display.clearScreen();
-      display.setCursor(5, 5);
-  display.setTextSize(2);
-  display.setCursor(5, 5);
-  display.setTextColor(BLACK);
-  display.print("T:");
-  display.print(oldtempAvgHolder2);
-  display.print((char)223);
-  display.println("C");
-  //display.setTextColor(CYAN);
-  display.print("RH: ");
-  display.print(oldhumAvgHolder2);
-  display.print("%");
-  //display.setTextColor(YELLOW);
-  display.print("AH: ");
-  display.println(oldabshumBME);
-  //  display.setTextColor(GREEN);
-  display.print("TDS: ");
-  display.println(oldtdsValue);
-   //   display.setTextColor(WHITE);
-    display.print("GAS: ");
-  display.println(oldgasRead);
-   //     display.setTextColor(LIGHTRED);
-    display.print("t:");
-  display.print(oldtempprobe);
-    display.print((char)223);
-  display.println("C");
-   
-  //display.fillRect(27,5,120,86,BLACK);
+  int x = 5;
+  int y = 5;
 
-    display.setCursor(5, 5);
-  display.setTextSize(2);
-  display.setCursor(5, 5);
-  display.setTextColor(MAGENTA);
-  display.print("T:");
-  display.print(tempAvgHolder2);
-  display.print((char)223);
-  display.println("C");
-  display.setTextColor(CYAN);
-  display.print("RH: ");
-  display.print(humAvgHolder2);
-  display.print("%");
-  display.setTextColor(YELLOW);
-  display.print("AH: ");
-  display.println(abshumBME);
-    display.setTextColor(GREEN);
-  display.print("TDS: ");
-  display.println((int)(tdsValue));
-      display.setTextColor(WHITE);
-    display.print("GAS: ");
-  display.println((int)(gasRead));
-        display.setTextColor(RED);
-    display.print("t:");
-  display.print(tempprobe);
-    display.print((char)223);
-  display.println("C");
+  canvas1.setTextSize(2);
+  canvas1.setCursor(0,0);
+  canvas1.fillScreen(0);
+  canvas1.print("T:");
+  canvas1.print(tempAvgHolder2);
+  canvas1.print((char)0xF7);
+  canvas1.println("C");
+  display.drawBitmap(x, y, canvas1.getBuffer(), 128, 16, MAGENTA, BLACK); 
+  y += 16;
 
-oldtempAvgHolder2 = tempAvgHolder2;
-oldhumAvgHolder2 = humAvgHolder2;
-oldabshumBME = abshumBME;
-oldtdsValue = (int)(tdsValue);
-oldgasRead = (int)(gasRead);
-oldtempprobe = tempprobe;
+  
+  canvas2.setTextSize(2);
+  canvas2.setCursor(0,0);
+  canvas2.fillScreen(0);
+  canvas2.print("RH: ");
+  canvas2.print(humAvgHolder2);
+  canvas2.print("%");
+  display.drawBitmap(x, y, canvas2.getBuffer(), 128, 16, CYAN, BLACK);
+  y += 16;
+
+  canvas3.setTextSize(2);
+  canvas3.setCursor(0,0);
+  canvas3.fillScreen(0);
+  canvas3.print("AH: ");
+  canvas3.println(abshumBME);
+  display.drawBitmap(x, y, canvas3.getBuffer(), 128, 16, YELLOW, BLACK);
+  y += 16;
+
+
+  canvas4.setTextSize(2);
+  canvas4.setCursor(0,0);
+  canvas4.fillScreen(0);
+  canvas4.print("TDS: ");
+  canvas4.println((int)(tdsValue));
+  display.drawBitmap(x, y, canvas4.getBuffer(), 128, 16, GREEN, BLACK);
+  y += 16;
+
+  canvas5.setTextSize(2);
+  canvas5.setCursor(0,0);
+  canvas5.fillScreen(0);
+  canvas5.print("GAS: ");
+  canvas5.println((int)(gasRead));
+  display.drawBitmap(x, y, canvas5.getBuffer(), 128, 16, WHITE, BLACK);
+  y += 16;
+
+
+  canvas6.setTextSize(2);
+  canvas6.setCursor(0,0);
+  canvas6.fillScreen(0);
+  canvas6.print("t:");
+  canvas6.print(tempprobe);
+  canvas6.print((char)0xF7);
+  canvas6.println("C");
+  display.drawBitmap(x, y, canvas6.getBuffer(), 128, 16, RED, BLACK);
+  y += 16;
+
+
 
 }
 
+//============================================CUBE BEGIN
+const float sin_d[] = { 
+  0,0.17,0.34,0.5,0.64,0.77,0.87,0.94,0.98,1,0.98,0.94,
+  0.87,0.77,0.64,0.5,0.34,0.17,0,-0.17,-0.34,-0.5,-0.64,
+  -0.77,-0.87,-0.94,-0.98,-1,-0.98,-0.94,-0.87,-0.77,
+  -0.64,-0.5,-0.34,-0.17 };
+const float cos_d[] = { 
+  1,0.98,0.94,0.87,0.77,0.64,0.5,0.34,0.17,0,-0.17,-0.34,
+  -0.5,-0.64,-0.77,-0.87,-0.94,-0.98,-1,-0.98,-0.94,-0.87,
+  -0.77,-0.64,-0.5,-0.34,-0.17,0,0.17,0.34,0.5,0.64,0.77,
+  0.87,0.94,0.98};
+const float d = 10;
+float px[] = { 
+  -d,  d,  d, -d, -d,  d,  d, -d };
+float py[] = { 
+  -d, -d,  d,  d, -d, -d,  d,  d };
+float pz[] = { 
+  -d, -d, -d, -d,  d,  d,  d,  d };
 
+float p2x[] = {
+  0,0,0,0,0,0,0,0};
+float p2y[] = {
+  0,0,0,0,0,0,0,0};
+
+int r[] = {
+  0,0,0};
+//=========================================================
 
 void setup() {
 
@@ -500,7 +523,7 @@ delay(500);
   Serial.println(WiFi.localIP());
       Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
     Blynk.connect();
-      terminal.println("**********COSTELLOOOO v0.6***********");
+      terminal.println("**********COSTELLOOOO v0.7***********");
       
     terminal.print("Connected to ");
     terminal.println(ssid);
@@ -555,21 +578,49 @@ delay(500);
         if (tempAvgHolder2 > 0) {tempAvg.push(tempAvgHolder2);}
         if (humAvgHolder2 > 0) {humAvg.push(humAvgHolder2);}
    display.clearScreen();
-/*uint8_t i;
-uint16_t w = 0;
-uint16_t v = 0;
-for (i = 0; i < 500; i++) {
-  calc_and_draw(w, v >> 3);
-  v += 3;
-  v &= 511;
-  w++;
-  w &= 63;
-  delay(10);
-  display.fillRect(x_min, y_min, x_max - x_min + 3, y_max - y_min + 3, 0x0000);
-}*/
-    display.writeScreen24(image_data_batman_ume);
-    delay(5000);
- 
+  for (int k=0;k<100;k++) {
+    //display.fillScreen(BLACK);
+  r[0]=r[0]+1;
+  r[1]=r[1]+1;
+  if (r[0] == 36) r[0] = 0;
+  if (r[1] == 36) r[1] = 0;
+  if (r[2] == 36) r[2] = 0;
+  for (int i=0;i<8;i++)
+  {
+     
+    float px2 = px[i];
+    float py2 = cos_d[r[0]]*py[i] - sin_d[r[0]]*pz[i];
+    float pz2 = sin_d[r[0]]*py[i] + cos_d[r[0]]*pz[i];
+
+    float px3 = cos_d[r[1]]*px2 + sin_d[r[1]]*pz2;
+    float py3 = py2;
+    float pz3 = -sin_d[r[1]]*px2 + cos_d[r[1]]*pz2;
+
+    float ax = cos_d[r[2]]*px3 - sin_d[r[2]]*py3;
+    float ay = sin_d[r[2]]*px3 + cos_d[r[2]]*py3;
+    float az = pz3-190;
+
+    p2x[i] = ((display.width())/2)+ax*500/az;
+    p2y[i] = ((display.height())/2)+ay*500/az;
+  }
+  for (int i=0;i<3;i++) {
+    display.drawLine(p2x[i],p2y[i],p2x[i+1],p2y[i+1],WHITE);
+    display.drawLine(p2x[i+4],p2y[i+4],p2x[i+5],p2y[i+5],RED);
+    display.drawLine(p2x[i],p2y[i],p2x[i+4],p2y[i+4],BLUE);
+  }   
+  display.drawLine(p2x[3],p2y[3],p2x[0],p2y[0],MAGENTA);
+  display.drawLine(p2x[7],p2y[7],p2x[4],p2y[4],GREEN);
+  display.drawLine(p2x[3],p2y[3],p2x[7],p2y[7],YELLOW);
+  delay(100);
+    for (int i=0;i<3;i++) {
+    display.drawLine(p2x[i],p2y[i],p2x[i+1],p2y[i+1],BLACK);
+    display.drawLine(p2x[i+4],p2y[i+4],p2x[i+5],p2y[i+5],BLACK);
+    display.drawLine(p2x[i],p2y[i],p2x[i+4],p2y[i+4],BLACK);
+  }   
+    display.drawLine(p2x[3],p2y[3],p2x[0],p2y[0],BLACK);
+  display.drawLine(p2x[7],p2y[7],p2x[4],p2y[4],BLACK);
+  display.drawLine(p2x[3],p2y[3],p2x[7],p2y[7],BLACK);
+  }
 }
 
 void loop() {
@@ -657,16 +708,17 @@ Blynk.run();
 
     }
 
-    if  (millis() - millisTFT >= 2500)  //if it's been 3 seconds
+    if  (millis() - millisTFT >= 3000)  //if it's been 3 seconds
     {
       //bme.takeForcedMeasurement();
-      tempprobe = readDStemp();
+      
         //tempBME = (bme.readTemperature() + tempoffset);
         //presBME = (bme.readPressure() / 100.0F);
         //humBME = bme.readHumidity();
         abshumBME = (6.112 * pow(2.71828, ((17.67 * tempAvgHolder2)/(tempAvgHolder2 + 243.5))) * humAvgHolder2 * 2.1674)/(273.15 + tempAvgHolder2);
         millisTFT = millis();
         doDisplay();
+        tempprobe = readDStemp();
     }
     
     if  (millis() - millisAvg >= 1000)  //if it's been 1 second
