@@ -48,15 +48,17 @@ float bbH = 1.78146466558454;
 
 #define BLACK   0x0000
 #define BLUE    0x001F
-#define LIGHTRED 0xFA9F
-#define LIGHTBLUE 0x9E3F
+#define LIGHTRED 0xFDB0
+#define LIGHTBLUE 0x84DF
 #define RED     0xF800
 #define GREEN   0x07E0
 #define CYAN    0x07FF
 #define MAGENTA 0xF81F
 #define YELLOW  0xFFE0  
 #define WHITE   0xFFFF 
-#define GREY 0x8410
+#define GREY 0xC618
+
+uint16_t TEXTCOLOR = YELLOW;
 
 
 
@@ -181,6 +183,22 @@ int firstvalue = 1;
 
 WidgetTerminal terminal(V10);
 
+float pm25in, pm25out, oldpm25in, oldpm25out, bridgetemp, bridgehum, oldbridgetemp, oldbridgehum;
+
+BLYNK_WRITE(V71){
+   pm25in = param.asFloat();
+}
+BLYNK_WRITE(V72){
+   pm25out = param.asFloat();
+}
+
+BLYNK_WRITE(V73){
+   bridgetemp = param.asFloat();
+}
+BLYNK_WRITE(V74){
+   bridgehum = param.asFloat();
+}
+
 BLYNK_WRITE(V10)
 {
     if (String("help") == param.asStr()) 
@@ -190,6 +208,7 @@ BLYNK_WRITE(V10)
     terminal.println("readgas");
     terminal.println("readtds");
     terminal.println("pushboth");
+    terminal.println("cube");
      terminal.println("==End of list.==");
     }
         if (String("wifi") == param.asStr()) 
@@ -212,6 +231,23 @@ BLYNK_WRITE(V10)
      }
               if (String("pushboth") == param.asStr()) {
         printtemp3();
+     }
+      if (String("cube") == param.asStr()) {
+        display.clearScreen();
+  doCube();
+  display.clearScreen();
+      }
+     if (String("grey") == param.asStr()) {
+        TEXTCOLOR = GREY;
+     }
+     if (String("lightred") == param.asStr()) {
+        TEXTCOLOR = LIGHTRED;
+     }
+     if (String("lightblue") == param.asStr()) {
+        TEXTCOLOR = LIGHTBLUE;
+     }
+     if (String("yellow") == param.asStr()) {
+        TEXTCOLOR = YELLOW;
      }
     terminal.flush();
 
@@ -402,8 +438,47 @@ return atof(c_buffer);
 float oldtempAvgHolder2, oldhumAvgHolder2, oldabshumBME, oldtempprobe;
 int oldtdsValue, oldgasRead;
 
+float  pmR, pmG, pmB;
+float  pmR2, pmG2, pmB2;
+
+uint16_t RGBto565(uint8_t r, uint8_t g, uint8_t b)
+{
+  return ((r / 8) << 11) | ((g / 4) << 5) | (b / 8);
+}
+
 void doDisplay() {
   //display.clearScreen();
+struct tm timeinfo;
+
+                  pmG = 55 - pm25in;
+                if (pmG < 0) {pmG = 0;}
+                pmG *= (255.0/55.0);
+                if (pmG > 255) {pmG = 255;}
+                
+                pmR = pm25in;
+                if (pmR < 0) {pmR = 0;}
+                pmR *= (255.0/55.0);
+                if (pmR > 255) {pmR = 255;}
+                
+                pmB = pm25in - 100;
+                if (pmB < 0) {pmB = 0;}
+                pmB *= (255.0/55.0);
+                if (pmB > 255) {pmB = 255;}
+
+                pmG2 = 55 - pm25out;
+                if (pmG2 < 0) {pmG2 = 0;}
+                pmG2 *= (255.0/55.0);
+                if (pmG2 > 255) {pmG2 = 255;}
+                
+                pmR2 = pm25out;
+                if (pmR2 < 0) {pmR2 = 0;}
+                pmR2 *= (255.0/55.0);
+                if (pmR2 > 255) {pmR2 = 255;}
+                
+                pmB2 = pm25out - 100;
+                if (pmB2 < 0) {pmB2 = 0;}
+                pmB2 *= (255.0/55.0);
+                if (pmB2 > 255) {pmB2 = 255;}
 
 display.setTextSize(2);
   display.setCursor(5, 5);
@@ -434,16 +509,16 @@ display.setTextSize(2);
   display.setTextColor(RED);
   display.print("t:");
   display.setTextColor(BLACK);
-  display.print(oldtempprobe);
-  //display.drawCircle(90,88,2,RED);
-  //display.drawCircle(90,88,3,RED);
-  //display.setTextColor(RED);
-  //display.println(" C");
-   
-  //display.fillRect(27,5,120,86,BLACK);
+  display.println(oldtempprobe);
+  display.setTextColor(RGBto565(pmR, pmG, pmB), RGBto565(pmR, pmG, pmB));
+  display.print(pm25in);
+  display.print(" ");
+  display.setTextColor(RGBto565(pmR2, pmG2, pmB2), RGBto565(pmR2, pmG2, pmB2));
+  display.print(pm25out);
+  display.print(" ");
 
 display.setTextSize(2);
-  display.setCursor(5, 5);
+  display.setCursor(0, 0);
   display.setTextColor(MAGENTA);
   display.print("T:");
   display.print(tempAvgHolder2);
@@ -469,7 +544,21 @@ display.setTextSize(2);
   display.drawCircle(90,88,2,RED);
   display.drawCircle(90,88,3,RED);
   display.println(" C");
+  display.setTextColor(TEXTCOLOR, RGBto565(pmR, pmG, pmB));
+  display.print(pm25in);
+  display.print(" ");
+  display.setTextColor(TEXTCOLOR, RGBto565(pmR2, pmG2, pmB2));
+  display.print(pm25out);
+  display.print(" ");
+  display.fillRect(0,117,128,11, BLACK);
+  display.setCursor(0, 117);
+  display.setTextSize(1);
+  display.setTextColor(YELLOW);
+  display.print("PM2.5 in / PM2.5 out");
 
+  
+oldpm25in = pm25in;
+oldpm25out = pm25out;
 oldtempAvgHolder2 = tempAvgHolder2;
 oldhumAvgHolder2 = humAvgHolder2;
 oldabshumBME = abshumBME;
@@ -507,6 +596,52 @@ float p2y[] = {
 int r[] = {
   0,0,0};
 //=========================================================
+
+void doCube(){
+  for (int k=0;k<50;k++) {
+    //display.fillScreen(BLACK);
+  r[0]=r[0]+1;
+  r[1]=r[1]+1;
+  if (r[0] == 36) r[0] = 0;
+  if (r[1] == 36) r[1] = 0;
+  if (r[2] == 36) r[2] = 0;
+  for (int i=0;i<8;i++)
+  {
+     
+    float px2 = px[i];
+    float py2 = cos_d[r[0]]*py[i] - sin_d[r[0]]*pz[i];
+    float pz2 = sin_d[r[0]]*py[i] + cos_d[r[0]]*pz[i];
+
+    float px3 = cos_d[r[1]]*px2 + sin_d[r[1]]*pz2;
+    float py3 = py2;
+    float pz3 = -sin_d[r[1]]*px2 + cos_d[r[1]]*pz2;
+
+    float ax = cos_d[r[2]]*px3 - sin_d[r[2]]*py3;
+    float ay = sin_d[r[2]]*px3 + cos_d[r[2]]*py3;
+    float az = pz3-190;
+
+    p2x[i] = ((display.width())/2)+ax*500/az;
+    p2y[i] = ((display.height())/2)+ay*500/az;
+  }
+  for (int i=0;i<3;i++) {
+    display.drawLine(p2x[i],p2y[i],p2x[i+1],p2y[i+1],WHITE);
+    display.drawLine(p2x[i+4],p2y[i+4],p2x[i+5],p2y[i+5],RED);
+    display.drawLine(p2x[i],p2y[i],p2x[i+4],p2y[i+4],BLUE);
+  }   
+  display.drawLine(p2x[3],p2y[3],p2x[0],p2y[0],MAGENTA);
+  display.drawLine(p2x[7],p2y[7],p2x[4],p2y[4],GREEN);
+  display.drawLine(p2x[3],p2y[3],p2x[7],p2y[7],YELLOW);
+  //delay(20);
+    for (int i=0;i<3;i++) {
+    display.drawLine(p2x[i],p2y[i],p2x[i+1],p2y[i+1],BLACK);
+    display.drawLine(p2x[i+4],p2y[i+4],p2x[i+5],p2y[i+5],BLACK);
+    display.drawLine(p2x[i],p2y[i],p2x[i+4],p2y[i+4],BLACK);
+  }   
+    display.drawLine(p2x[3],p2y[3],p2x[0],p2y[0],BLACK);
+  display.drawLine(p2x[7],p2y[7],p2x[4],p2y[4],BLACK);
+  display.drawLine(p2x[3],p2y[3],p2x[7],p2y[7],BLACK);
+  }
+}
 
 void setup() {
 
@@ -578,7 +713,7 @@ delay(500);
     while (1);
   }
   else {terminal.println("ADS initialized");}
-  terminal.println("Startup complete.");
+  terminal.println("Startup complete.");bridgetemp
    terminal.flush();
    delay(3000);
            bme.takeForcedMeasurement();       
@@ -592,49 +727,8 @@ delay(500);
         if (tempAvgHolder2 > 0) {tempAvg.push(tempAvgHolder2);}
         if (humAvgHolder2 > 0) {humAvg.push(humAvgHolder2);}
    display.clearScreen();
-  for (int k=0;k<25;k++) {
-    //display.fillScreen(BLACK);
-  r[0]=r[0]+1;
-  r[1]=r[1]+1;
-  if (r[0] == 36) r[0] = 0;
-  if (r[1] == 36) r[1] = 0;
-  if (r[2] == 36) r[2] = 0;
-  for (int i=0;i<8;i++)
-  {
-     
-    float px2 = px[i];
-    float py2 = cos_d[r[0]]*py[i] - sin_d[r[0]]*pz[i];
-    float pz2 = sin_d[r[0]]*py[i] + cos_d[r[0]]*pz[i];
-
-    float px3 = cos_d[r[1]]*px2 + sin_d[r[1]]*pz2;
-    float py3 = py2;
-    float pz3 = -sin_d[r[1]]*px2 + cos_d[r[1]]*pz2;
-
-    float ax = cos_d[r[2]]*px3 - sin_d[r[2]]*py3;
-    float ay = sin_d[r[2]]*px3 + cos_d[r[2]]*py3;
-    float az = pz3-190;
-
-    p2x[i] = ((display.width())/2)+ax*500/az;
-    p2y[i] = ((display.height())/2)+ay*500/az;
-  }
-  for (int i=0;i<3;i++) {
-    display.drawLine(p2x[i],p2y[i],p2x[i+1],p2y[i+1],WHITE);
-    display.drawLine(p2x[i+4],p2y[i+4],p2x[i+5],p2y[i+5],RED);
-    display.drawLine(p2x[i],p2y[i],p2x[i+4],p2y[i+4],BLUE);
-  }   
-  display.drawLine(p2x[3],p2y[3],p2x[0],p2y[0],MAGENTA);
-  display.drawLine(p2x[7],p2y[7],p2x[4],p2y[4],GREEN);
-  display.drawLine(p2x[3],p2y[3],p2x[7],p2y[7],YELLOW);
-  //delay(20);
-    for (int i=0;i<3;i++) {
-    display.drawLine(p2x[i],p2y[i],p2x[i+1],p2y[i+1],BLACK);
-    display.drawLine(p2x[i+4],p2y[i+4],p2x[i+5],p2y[i+5],BLACK);
-    display.drawLine(p2x[i],p2y[i],p2x[i+4],p2y[i+4],BLACK);
-  }   
-    display.drawLine(p2x[3],p2y[3],p2x[0],p2y[0],BLACK);
-  display.drawLine(p2x[7],p2y[7],p2x[4],p2y[4],BLACK);
-  display.drawLine(p2x[3],p2y[3],p2x[7],p2y[7],BLACK);
-  }
+  doCube();
+  display.clearScreen();
 }
 
 void loop() {
@@ -663,8 +757,8 @@ Blynk.run();
       averageVoltage = getMedianNum(analogBufferTemp,SCOUNT) * (float)VREF / 65535.0;
       
       //temperature compensation formula: fFinalResult(25^C) = fFinalResult(current)/(1.0+0.02*(fTP-25.0)); 
-      float compensationCoefficient = 1.0+0.02*(tempprobe-25.0);
-      float compensationCoefficient2 = 1.0+0.02*(25-25.0);
+      float compensationCoefficient = 1.0+0.019*(tempprobe-25.0);
+      float compensationCoefficient2 = 1.0+0.019*(25-25.0);
       //temperature compensation
       float compensationVoltage=averageVoltage/compensationCoefficient;
       float compensationVoltage2=averageVoltage/compensationCoefficient2;
@@ -729,9 +823,11 @@ Blynk.run();
         //tempBME = (bme.readTemperature() + tempoffset);
         //presBME = (bme.readPressure() / 100.0F);
         //humBME = bme.readHumidity();
+        if ((tempAvgHolder2 > 0) && (humAvgHolder2 > 0)){
         abshumBME = (6.112 * pow(2.71828, ((17.67 * tempAvgHolder2)/(tempAvgHolder2 + 243.5))) * humAvgHolder2 * 2.1674)/(273.15 + tempAvgHolder2);
-        millisTFT = millis();
         doDisplay();
+        }
+        millisTFT = millis();
         
     }
     
@@ -753,3 +849,36 @@ Blynk.run();
 
 
 
+void printLocalTime2(){
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return;
+  }
+  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+  Serial.print("Day of week: ");
+  Serial.println(&timeinfo, "%A");
+  Serial.print("Month: ");
+  Serial.println(&timeinfo, "%B");
+  Serial.print("Day of Month: ");
+  Serial.println(&timeinfo, "%d");
+  Serial.print("Year: ");
+  Serial.println(&timeinfo, "%Y");
+  Serial.print("Hour: ");
+  Serial.println(&timeinfo, "%H");
+  Serial.print("Hour (12 hour format): ");
+  Serial.println(&timeinfo, "%I");
+  Serial.print("Minute: ");
+  Serial.println(&timeinfo, "%M");
+  Serial.print("Second: ");
+  Serial.println(&timeinfo, "%S");
+
+  Serial.println("Time variables");
+  char timeHour[3];
+  strftime(timeHour,3, "%H", &timeinfo);
+  Serial.println(timeHour);
+  char timeWeekDay[10];
+  strftime(timeWeekDay,10, "%A", &timeinfo);
+  Serial.println(timeWeekDay);
+  Serial.println();
+}
