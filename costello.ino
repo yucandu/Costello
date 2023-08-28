@@ -18,21 +18,30 @@
 #include <SPI.h>
 #include <Adafruit_ADS1X15.h>
 Adafruit_ADS1115 ads;
-GFXcanvas1 canvas1(128, 16);
-GFXcanvas1 canvas2(128, 16);
-GFXcanvas1 canvas3(128, 16);
-GFXcanvas1 canvas4(128, 16);
-GFXcanvas1 canvas5(128, 16);
-GFXcanvas1 canvas6(128, 16);
 
 
 
-#define VREF 4.096              // analog reference voltage(Volt) of the ADC
-#define SCOUNT  30            // sum of sample point
-int analogBuffer[SCOUNT];     // store the analog value in the array, read from ADC
+
+
+
+
+bool isPM = false;
+
+
+#define VREF 4.096         // analog reference voltage(Volt) of the ADC
+#define SCOUNT 30          // sum of sample point
+int analogBuffer[SCOUNT];  // store the analog value in the array, read from ADC
 int analogBufferTemp[SCOUNT];
 int analogBufferIndex = 0;
 int copyIndex = 0;
+
+int dd;  // Variables to hold data as integers
+int mo;
+int y;
+int h;
+int mi;
+int s;
+
 
 float averageVoltage = 0;
 float tdsValue = 0;
@@ -46,17 +55,18 @@ float baH = -0.0159747107540879;
 float abH = -0.00748672213648967;
 float bbH = 1.78146466558454;
 
-#define BLACK   0x0000
-#define BLUE    0x001F
+#define BLACK 0x0000
+#define BLUE 0x001F
 #define LIGHTRED 0xFDB0
-#define LIGHTBLUE 0x84DF
-#define RED     0xF800
-#define GREEN   0x07E0
-#define CYAN    0x07FF
-#define MAGENTA 0xF81F
-#define YELLOW  0xFFE0  
-#define WHITE   0xFFFF 
+#define LIGHTBLUE 0x869F
+#define RED 0xF800
+#define GREEN 0x07E0
+#define CYAN 0x07FF
+#define MAGENTA 0xFC3B
+#define YELLOW 0xFFE0
+#define WHITE 0xFFFF
 #define GREY 0xC618
+#define ORANGE 0xFE2F
 
 uint16_t TEXTCOLOR = YELLOW;
 
@@ -68,7 +78,7 @@ uint16_t TEXTCOLOR = YELLOW;
 #define __DC 16
 #define __A0 0
 #define TFT_CS 2
-#define TFT_DC  16
+#define TFT_DC 16
 #define TFT_RST 0
 
 
@@ -78,10 +88,10 @@ float correctionFactor(float temp, float hum) {
   return (aaH * hum * temp) + (baH * temp) + (abH * hum) + bbH;
 }
 
-int getMedianNum(int bArray[], int iFilterLen){
+int getMedianNum(int bArray[], int iFilterLen) {
   int bTab[iFilterLen];
-  for (byte i = 0; i<iFilterLen; i++)
-  bTab[i] = bArray[i];
+  for (byte i = 0; i < iFilterLen; i++)
+    bTab[i] = bArray[i];
   int i, j, bTemp;
   for (j = 0; j < iFilterLen - 1; j++) {
     for (i = 0; i < iFilterLen - j - 1; i++) {
@@ -92,10 +102,9 @@ int getMedianNum(int bArray[], int iFilterLen){
       }
     }
   }
-  if ((iFilterLen & 1) > 0){
+  if ((iFilterLen & 1) > 0) {
     bTemp = bTab[(iFilterLen - 1) / 2];
-  }
-  else {
+  } else {
     bTemp = (bTab[iFilterLen / 2] + bTab[iFilterLen / 2 - 1]) / 2;
   }
   return bTemp;
@@ -116,7 +125,7 @@ float tempAvgHolder, humAvgHolder, absHumAvgHolder, tempAvgHolder2, humAvgHolder
 
 
 // GPIO where the DS18B20 is connected to
-const int oneWireBus = 12;     
+const int oneWireBus = 12;
 #define DS18B20_PIN 12
 int c_temp;
 char c_buffer[9], f_buffer[9];
@@ -127,39 +136,39 @@ int gasRead;
 
 
 const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = -14400;   //Replace with your GMT offset (seconds)
-const int   daylightOffset_sec = 0;  //Replace with your daylight offset (seconds)
+const long gmtOffset_sec = -14400;  //Replace with your GMT offset (seconds)
+const int daylightOffset_sec = 0;   //Replace with your daylight offset (seconds)
 
 
 
 
 
-  float adc0, adc1, adc2, adc3;
-  float volts0, volts1, volts2, volts3;
+float adc0, adc1, adc2, adc3;
+float volts0, volts1, volts2, volts3;
 
 int measureDelay = 500;
-int Ra=25;
-int R1= 1000 + Ra;
-int ECPin= A0;
+int Ra = 25;
+int R1 = 1000 + Ra;
+int ECPin = A0;
 int ECGround = 16;
-int ECPower =10;
-float PPMconversion=0.5; 
+int ECPower = 10;
+float PPMconversion = 0.5;
 float TemperatureCoef = 0.0187;
-float K=2;
-float EC=0;
-float EC2=0;
-float EC25 =0;
+float K = 2;
+float EC = 0;
+float EC2 = 0;
+float EC25 = 0;
 float EC252 = 0;
-int ppm =0;
-int ppm2 =0;
-float raw= 0;
-float raw2= 0;
-float Vin= 3.3;
-float Vdrop= 0;
-float Vdrop2= 0;
-float Rc= 0;
-float Rc2= 0;
-float buffer=0;
+int ppm = 0;
+int ppm2 = 0;
+float raw = 0;
+float raw2 = 0;
+float Vin = 3.3;
+float Vdrop = 0;
+float Vdrop2 = 0;
+float Rc = 0;
+float Rc2 = 0;
+float buffer = 0;
 
 const char* ssid = "mikesnet";
 const char* password = "springchicken";
@@ -168,10 +177,10 @@ const char* password = "springchicken";
 #define SEALEVELPRESSURE_HPA (1013.25)
 #define tempoffset -0.9F
 
-char auth[] = "pO--Yj8ksH2fjJLMW6yW9trkHBhd9-wc"; //BLYNK
+char auth[] = "pO--Yj8ksH2fjJLMW6yW9trkHBhd9-wc";  //BLYNK
 
 AsyncWebServer server(80);
-Adafruit_BME280 bme; // I2C
+Adafruit_BME280 bme;  // I2C
 float abshumBME, tempBME, presBME, humBME;
 float tempprobe = 20;
 unsigned long millisBlynk = 0;
@@ -185,119 +194,122 @@ WidgetTerminal terminal(V10);
 
 float pm25in, pm25out, oldpm25in, oldpm25out, bridgetemp, bridgehum, oldbridgetemp, oldbridgehum;
 
-BLYNK_WRITE(V71){
-   pm25in = param.asFloat();
+BLYNK_WRITE(V71) {
+  pm25in = param.asFloat();
 }
-BLYNK_WRITE(V72){
-   pm25out = param.asFloat();
-}
-
-BLYNK_WRITE(V73){
-   bridgetemp = param.asFloat();
-}
-BLYNK_WRITE(V74){
-   bridgehum = param.asFloat();
+BLYNK_WRITE(V72) {
+  pm25out = param.asFloat();
 }
 
-BLYNK_WRITE(V10)
-{
-    if (String("help") == param.asStr()) 
-    {
+BLYNK_WRITE(V73) {
+  bridgetemp = param.asFloat();
+}
+BLYNK_WRITE(V74) {
+  bridgehum = param.asFloat();
+}
+
+BLYNK_WRITE(V10) {
+  if (String("help") == param.asStr()) {
     terminal.println("==List of available commands:==");
     terminal.println("wifi");
     terminal.println("readgas");
     terminal.println("readtds");
     terminal.println("pushboth");
     terminal.println("cube");
-     terminal.println("==End of list.==");
-    }
-        if (String("wifi") == param.asStr()) 
-    {
-        terminal.print("Connected to: ");
-        terminal.println(ssid);
-        terminal.print("IP address:");
-        terminal.println(WiFi.localIP());
-        terminal.print("Signal strength: ");
-        printLocalTime();
-        terminal.println(WiFi.RSSI());
-    }
+    terminal.println("==End of list.==");
+  }
+  if (String("wifi") == param.asStr()) {
+    terminal.print("Connected to: ");
+    terminal.println(ssid);
+    terminal.print("IP address:");
+    terminal.println(WiFi.localIP());
+    terminal.print("Signal strength: ");
+    printLocalTime();
+    terminal.println(WiFi.RSSI());
+  }
 
 
-     if (String("readgas") == param.asStr()) {
-        printtemp();
-     }
-         if (String("readtds") == param.asStr()) {
-        printtemp2();
-     }
-              if (String("pushboth") == param.asStr()) {
-        printtemp3();
-     }
-      if (String("cube") == param.asStr()) {
-        display.clearScreen();
-  doCube();
-  display.clearScreen();
-      }
-     if (String("grey") == param.asStr()) {
-        TEXTCOLOR = GREY;
-     }
-     if (String("lightred") == param.asStr()) {
-        TEXTCOLOR = LIGHTRED;
-     }
-     if (String("lightblue") == param.asStr()) {
-        TEXTCOLOR = LIGHTBLUE;
-     }
-     if (String("yellow") == param.asStr()) {
-        TEXTCOLOR = YELLOW;
-     }
-    terminal.flush();
-
+  if (String("readgas") == param.asStr()) {
+    printtemp();
+  }
+  if (String("readtds") == param.asStr()) {
+    printtemp2();
+  }
+  if (String("pushboth") == param.asStr()) {
+    printtemp3();
+  }
+  if (String("cube") == param.asStr()) {
+    display.clearScreen();
+    doCube();
+    display.clearScreen();
+    startDisplay();
+  }
+  if (String("grey") == param.asStr()) {
+    TEXTCOLOR = GREY;
+  }
+  if (String("lightred") == param.asStr()) {
+    TEXTCOLOR = LIGHTRED;
+  }
+  if (String("lightblue") == param.asStr()) {
+    TEXTCOLOR = LIGHTBLUE;
+  }
+  if (String("yellow") == param.asStr()) {
+    TEXTCOLOR = YELLOW;
+  }
+  terminal.flush();
 }
 
 
 
 
-void printLocalTime()
-{
+void printLocalTime() {
   time_t rawtime;
-  struct tm * timeinfo;
-  time (&rawtime);
-  timeinfo = localtime (&rawtime);
+  struct tm* timeinfo;
+  time(&rawtime);
+  timeinfo = localtime(&rawtime);
   terminal.print("-");
   terminal.print(asctime(timeinfo));
   terminal.print(" - ");
   terminal.flush();
 }
 
-void displayLocalTime()
-{
+void displayLocalTime() {
   time_t rawtime;
-  struct tm * timeinfo;
-  time (&rawtime);
-  timeinfo = localtime (&rawtime);
+  struct tm* timeinfo;
+  time(&rawtime);
+  timeinfo = localtime(&rawtime);
   display.print(asctime(timeinfo));
 }
 
 
 void printtemp() {
 
-            ads.setGain(GAIN_SIXTEEN);
-adc3 = ads.readADC_SingleEnded(3);
-adc3 = ads.readADC_SingleEnded(3);
-        ads.setGain(GAIN_TWO);
+  ads.setGain(GAIN_SIXTEEN);
+  adc3 = ads.readADC_SingleEnded(3);
+  adc3 = ads.readADC_SingleEnded(3);
+  ads.setGain(GAIN_TWO);
   volts3 = ads.computeVolts(adc3);
   terminal.println("----------GAS---------");
-  terminal.println("AIN3: "); terminal.print(adc3); terminal.print("  "); terminal.print(volts3); terminal.println("V");
+  terminal.println("AIN3: ");
+  terminal.print(adc3);
+  terminal.print("  ");
+  terminal.print(volts3);
+  terminal.println("V");
   terminal.flush();
 }
 
 void printtemp2() {
-                ads.setGain(GAIN_TWO);
-adc1 = ads.readADC_SingleEnded(1);
-adc1 = ads.readADC_SingleEnded(1);
-        ads.setGain(GAIN_TWO);
+  ads.setGain(GAIN_TWO);
+  adc1 = ads.readADC_SingleEnded(1);
+  adc1 = ads.readADC_SingleEnded(1);
+  ads.setGain(GAIN_TWO);
   volts1 = ads.computeVolts(adc1);
   terminal.println("----------TDS---------");
-  terminal.println("AIN1: "); terminal.print(adc1); terminal.print("  "); terminal.print(volts1); terminal.println("V");
+  terminal.println("AIN1: ");
+  terminal.print(adc1);
+  terminal.print("  ");
+  terminal.print(volts1);
+  terminal.println("V");
   terminal.print("Code volts: ");
   terminal.println(averageVoltage);
   terminal.flush();
@@ -306,24 +318,21 @@ adc1 = ads.readADC_SingleEnded(1);
 
 
 
-bool ds18b20_start()
-{
+bool ds18b20_start() {
   bool ret = 0;
   digitalWrite(DS18B20_PIN, LOW);  // send reset pulse to the DS18B20 sensor
   pinMode(DS18B20_PIN, OUTPUT);
-  delayMicroseconds(500);          // wait 500 us
+  delayMicroseconds(500);  // wait 500 us
   pinMode(DS18B20_PIN, INPUT);
-  delayMicroseconds(100);          // wait to read the DS18B20 sensor response
-  if (!digitalRead(DS18B20_PIN))
-  {
-    ret = 1;                  // DS18B20 sensor is present
-    delayMicroseconds(400);   // wait 400 us
+  delayMicroseconds(100);  // wait to read the DS18B20 sensor response
+  if (!digitalRead(DS18B20_PIN)) {
+    ret = 1;                 // DS18B20 sensor is present
+    delayMicroseconds(400);  // wait 400 us
   }
-  return(ret);
+  return (ret);
 }
 
-void ds18b20_write_bit(bool value)
-{
+void ds18b20_write_bit(bool value) {
   digitalWrite(DS18B20_PIN, LOW);
   pinMode(DS18B20_PIN, OUTPUT);
   delayMicroseconds(2);
@@ -333,15 +342,13 @@ void ds18b20_write_bit(bool value)
   delayMicroseconds(2);
 }
 
-void ds18b20_write_byte(byte value)
-{
+void ds18b20_write_byte(byte value) {
   byte i;
-  for(i = 0; i < 8; i++)
+  for (i = 0; i < 8; i++)
     ds18b20_write_bit(bitRead(value, i));
 }
 
-bool ds18b20_read_bit(void)
-{
+bool ds18b20_read_bit(void) {
   bool value;
   digitalWrite(DS18B20_PIN, LOW);
   pinMode(DS18B20_PIN, OUTPUT);
@@ -353,303 +360,368 @@ bool ds18b20_read_bit(void)
   return value;
 }
 
-uint16_t ds18b20_read_byte(void)
- {  
- byte i;
- uint16_t value=0;
-  for(i = 0; i < 12 ; i++)   
-  bitWrite(value, i, ds18b20_read_bit());
+uint16_t ds18b20_read_byte(void) {
+  byte i;
+  uint16_t value = 0;
+  for (i = 0; i < 12; i++)
+    bitWrite(value, i, ds18b20_read_bit());
   //terminal.print(value);
   return value;
 }
 
-bool ds18b20_read(int *raw_temp_value)
-{
+bool ds18b20_read(int* raw_temp_value) {
   if (!ds18b20_start())  // send start pulse
-    return(0);
-  ds18b20_write_byte(0xCC);   // send skip ROM command
-  ds18b20_write_byte(0x44);   // send start conversion command
-  while(ds18b20_read_byte() == 0);  // wait for conversion complete
-  if (!ds18b20_start())             // send start pulse
-    return(0);                      // return 0 if error
-  ds18b20_write_byte(0xCC);         // send skip ROM command
-  ds18b20_write_byte(0xBE);         // send read command
+    return (0);
+  ds18b20_write_byte(0xCC);  // send skip ROM command
+  ds18b20_write_byte(0x44);  // send start conversion command
+  while (ds18b20_read_byte() == 0)
+    ;                        // wait for conversion complete
+  if (!ds18b20_start())      // send start pulse
+    return (0);              // return 0 if error
+  ds18b20_write_byte(0xCC);  // send skip ROM command
+  ds18b20_write_byte(0xBE);  // send read command
 
   // read temperature LSB byte and store it on raw_temp_value LSB byte
   *raw_temp_value = ds18b20_read_byte();
   // read temperature MSB byte and store it on raw_temp_value MSB byte
   *raw_temp_value |= (unsigned int)(ds18b20_read_byte() << 8);
 
-  return(1);  // OK --> return 1
+  return (1);  // OK --> return 1
 }
 
-void printtemp3(){
+void printtemp3() {
   Blynk.virtualWrite(V9, gasAvg.mean());
   Blynk.virtualWrite(V11, ppmAvg.mean());
   Blynk.virtualWrite(V12, a2Avg.mean());
-terminal.println("Gas: ");
-terminal.print(gasAvg.mean());
-terminal.print(", PPM from avg: ");
-terminal.print(ppmAvg.mean());
-terminal.print(", PPM from sensor: ");
-terminal.print(tdsValue);
-terminal.print(", A2 from avg: ");
-terminal.print(a2Avg.mean());
-terminal.print(", A2 from sensor: ");
-terminal.print(ads.readADC_SingleEnded(1));
-terminal.println("");
+  terminal.println("Gas: ");
+  terminal.print(gasAvg.mean());
+  terminal.print(", PPM from avg: ");
+  terminal.print(ppmAvg.mean());
+  terminal.print(", PPM from sensor: ");
+  terminal.print(tdsValue);
+  terminal.print(", A2 from avg: ");
+  terminal.print(a2Avg.mean());
+  terminal.print(", A2 from sensor: ");
+  terminal.print(ads.readADC_SingleEnded(1));
+  terminal.println("");
 }
 
 float readDStemp(void) {
-       if( ds18b20_read(&c_temp) ) {  
-      // read from DS18B20 sensor OK
-  
-      // calculate temperature in °F (actual temperature in °F = f_temp/160)
-      // °F = °C x 9/5 + 32
-      int32_t f_temp = (int32_t)c_temp * 90/5 + 5120;  // 5120 = 32 x 16 x 10
-  
-      if(c_temp < 0) {   // if temperature < 0 °C
+  if (ds18b20_read(&c_temp)) {
+    // read from DS18B20 sensor OK
+
+    // calculate temperature in °F (actual temperature in °F = f_temp/160)
+    // °F = °C x 9/5 + 32
+    int32_t f_temp = (int32_t)c_temp * 90 / 5 + 5120;  // 5120 = 32 x 16 x 10
+
+    if (c_temp < 0) {        // if temperature < 0 °C
       c_temp = abs(c_temp);  // absolute value
-      sprintf(c_buffer, "-%02u.%04u", c_temp/16, (c_temp & 0x0F) * 625);
-    }
-    else {
-      if (c_temp/16 >= 100)    // if temperature >= 100.0 °C
-        sprintf(c_buffer, "%03u.%04u", c_temp/16, (c_temp & 0x0F) * 625);
+      sprintf(c_buffer, "-%02u.%04u", c_temp / 16, (c_temp & 0x0F) * 625);
+    } else {
+      if (c_temp / 16 >= 100)  // if temperature >= 100.0 °C
+        sprintf(c_buffer, "%03u.%04u", c_temp / 16, (c_temp & 0x0F) * 625);
       else
-        sprintf(c_buffer, " %02u.%04u", c_temp/16, (c_temp & 0x0F) * 625);
+        sprintf(c_buffer, " %02u.%04u", c_temp / 16, (c_temp & 0x0F) * 625);
     }
-  
-    if(f_temp < 0) {   // if temperature < 0 °F
+
+    if (f_temp < 0) {        // if temperature < 0 °F
       f_temp = abs(f_temp);  // absolute value
-      sprintf(f_buffer, "-%02u.%04u", (uint16_t)f_temp/160, (uint16_t)(f_temp*1000/16 % 10000));
-    }
-    else {
-      if (f_temp/160 >= 100)    // if temperature >= 100.0 °F
-        sprintf(f_buffer, "%03u.%04u", (uint16_t)f_temp/160, (uint16_t)(f_temp*1000/16 % 10000));
+      sprintf(f_buffer, "-%02u.%04u", (uint16_t)f_temp / 160, (uint16_t)(f_temp * 1000 / 16 % 10000));
+    } else {
+      if (f_temp / 160 >= 100)  // if temperature >= 100.0 °F
+        sprintf(f_buffer, "%03u.%04u", (uint16_t)f_temp / 160, (uint16_t)(f_temp * 1000 / 16 % 10000));
       else
-        sprintf(f_buffer, " %02u.%04u", (uint16_t)f_temp/160, (uint16_t)(f_temp*1000/16 % 10000));
+        sprintf(f_buffer, " %02u.%04u", (uint16_t)f_temp / 160, (uint16_t)(f_temp * 1000 / 16 % 10000));
     }
-return atof(c_buffer);
-  }
-  else return -69.69;
+    return atof(c_buffer);
+  } else return -69.69;
 }
 
 
 float oldtempAvgHolder2, oldhumAvgHolder2, oldabshumBME, oldtempprobe;
-int oldtdsValue, oldgasRead;
+int oldtdsValue, oldcorrectedGas;
 
-float  pmR, pmG, pmB;
-float  pmR2, pmG2, pmB2;
+float pmR, pmG, pmB;
+float pmR2, pmG2, pmB2;
 
-uint16_t RGBto565(uint8_t r, uint8_t g, uint8_t b)
-{
+uint16_t RGBto565(uint8_t r, uint8_t g, uint8_t b) {
   return ((r / 8) << 11) | ((g / 4) << 5) | (b / 8);
 }
 
+char time_value[20];
+int hours, mins, secs;
+
 void doDisplay() {
   //display.clearScreen();
-struct tm timeinfo;
+  //time_t now = time(nullptr);
+  //String time = String(ctime(&now));
+  //time.trim();
+  //Serial.println(time);
+  //time.substring(11, 19).toCharArray(time_value, 10);
 
-                  pmG = 55 - pm25in;
-                if (pmG < 0) {pmG = 0;}
-                pmG *= (255.0/55.0);
-                if (pmG > 255) {pmG = 255;}
-                
-                pmR = pm25in;
-                if (pmR < 0) {pmR = 0;}
-                pmR *= (255.0/55.0);
-                if (pmR > 255) {pmR = 255;}
-                
-                pmB = pm25in - 100;
-                if (pmB < 0) {pmB = 0;}
-                pmB *= (255.0/55.0);
-                if (pmB > 255) {pmB = 255;}
+  pmG = 55 - pm25in;
+  if (pmG < 0) { pmG = 0; }
+  pmG *= (255.0 / 55.0);
+  if (pmG > 255) { pmG = 255; }
 
-                pmG2 = 55 - pm25out;
-                if (pmG2 < 0) {pmG2 = 0;}
-                pmG2 *= (255.0/55.0);
-                if (pmG2 > 255) {pmG2 = 255;}
-                
-                pmR2 = pm25out;
-                if (pmR2 < 0) {pmR2 = 0;}
-                pmR2 *= (255.0/55.0);
-                if (pmR2 > 255) {pmR2 = 255;}
-                
-                pmB2 = pm25out - 100;
-                if (pmB2 < 0) {pmB2 = 0;}
-                pmB2 *= (255.0/55.0);
-                if (pmB2 > 255) {pmB2 = 255;}
+  pmR = pm25in;
+  if (pmR < 0) { pmR = 0; }
+  pmR *= (255.0 / 55.0);
+  if (pmR > 255) { pmR = 255; }
 
-display.setTextSize(2);
-  display.setCursor(5, 5);
-  display.setTextColor(MAGENTA);
-  display.print("T:");
-  display.setTextColor(BLACK);
-  display.println(oldtempAvgHolder2);
-  //display.drawCircle(95,8,2,MAGENTA);
-  //display.drawCircle(95,8,3,MAGENTA);
-  //display.setTextColor(MAGENTA);
-  //display.println(" C");
-  display.setTextColor(CYAN);
-  display.print("RH: ");
-  display.setTextColor(BLACK);
-  display.println(oldhumAvgHolder2);
-  display.setTextColor(YELLOW);
-  display.print("AH: ");
-  display.setTextColor(BLACK);
-  display.println(oldabshumBME);
-  display.setTextColor(GREEN);
-  display.print("TDS: ");
-  display.setTextColor(BLACK);
-  display.println(oldtdsValue);
-  display.setTextColor(WHITE);
-  display.print("GAS: ");
-  display.setTextColor(BLACK);
-  display.println(oldgasRead);
-  display.setTextColor(RED);
-  display.print("t:");
-  display.setTextColor(BLACK);
-  display.println(oldtempprobe);
-  display.setTextColor(RGBto565(pmR, pmG, pmB), RGBto565(pmR, pmG, pmB));
-  display.print(pm25in);
-  display.print(" ");
-  display.setTextColor(RGBto565(pmR2, pmG2, pmB2), RGBto565(pmR2, pmG2, pmB2));
-  display.print(pm25out);
-  display.print(" ");
+  pmB = pm25in - 100;
+  if (pmB < 0) { pmB = 0; }
+  pmB *= (255.0 / 55.0);
+  if (pmB > 255) { pmB = 255; }
 
-display.setTextSize(2);
+  pmG2 = 55 - pm25out;
+  if (pmG2 < 0) { pmG2 = 0; }
+  pmG2 *= (255.0 / 55.0);
+  if (pmG2 > 255) { pmG2 = 255; }
+
+  pmR2 = pm25out;
+  if (pmR2 < 0) { pmR2 = 0; }
+  pmR2 *= (255.0 / 55.0);
+  if (pmR2 > 255) { pmR2 = 255; }
+
+  pmB2 = pm25out - 100;
+  if (pmB2 < 0) { pmB2 = 0; }
+  pmB2 *= (255.0 / 55.0);
+  if (pmB2 > 255) { pmB2 = 255; }
+
+  display.setTextSize(2);
   display.setCursor(0, 0);
-  display.setTextColor(MAGENTA);
-  display.print("T:");
-  display.print(tempAvgHolder2);
-  display.drawCircle(95,8,2,MAGENTA);
-  display.drawCircle(95,8,3,MAGENTA);
+  display.setTextColor(BLACK);
+  display.print(hours);
+  display.print(":");
+  if (mins < 10) { display.print("0"); }
+  display.print(mins);
+  display.print(":");
+  if (secs < 10) { display.print("0"); }
+  display.print(secs);
+  if (hours < 10) {display.print(" ");}
+  if (isPM) {
+    display.println("PM");
+  } else {
+    display.println("AM");
+  }
+  display.setCursor(0, 21);
+  display.setTextColor(RED);
+  display.print("iT:");
+  display.setTextColor(BLACK);
+  display.print(oldtempAvgHolder2);
   display.println(" C");
   display.setTextColor(CYAN);
-  display.print("RH: ");
-  display.print(humAvgHolder2);
-  display.print("%");
-  display.setTextColor(YELLOW);
-  display.print("AH: ");
-  display.println(abshumBME);
-  display.setTextColor(GREEN);
-  display.print("TDS: ");
-  display.println((int)(tdsValue));
-  display.setTextColor(WHITE);
-  display.print("GAS: ");
-  display.println((int)(gasRead));
-  display.setTextColor(RED);
-  display.print("t:");
-  display.print(tempprobe);
-  display.drawCircle(90,88,2,RED);
-  display.drawCircle(90,88,3,RED);
+  display.print("iH: ");
+  display.setTextColor(BLACK);
+  display.print(oldabshumBME);
+  display.println("g");
+  display.setTextColor(MAGENTA);
+  display.print("oT:");
+  display.setTextColor(BLACK);
+  display.print(oldbridgetemp);
   display.println(" C");
+  display.setTextColor(LIGHTBLUE);
+  display.print("oH: ");
+  display.setTextColor(BLACK);
+  display.print(oldbridgehum);
+  display.println("g");
+  display.setTextColor(ORANGE);
+
+  display.print("GAS: ");
+  display.setTextColor(BLACK);
+  display.print((int)(oldcorrectedGas));
+  display.println((char)233);
+
+
+  struct tm timeinfo;
+  getLocalTime(&timeinfo);
+  hours = timeinfo.tm_hour;
+  mins = timeinfo.tm_min;
+  secs = timeinfo.tm_sec;
+  if (hours > 12) {
+    hours -= 12;
+    isPM = true;
+  } else {
+    isPM = false;
+  }
+  if (hours == 12) {isPM = true;}
+  if (hours == 0) {hours = 12;}
+  
+  display.setTextSize(2);
+  display.setCursor(0, 0);
+  display.setTextColor(WHITE);
+  display.print(hours);
+  display.print(":");
+  if (mins < 10) { display.print("0"); }
+  display.print(mins);
+  display.print(":");
+  if (secs < 10) { display.print("0"); }
+  display.print(secs);
+  if (hours < 10) {display.print(" ");}
+  if (isPM) {
+    display.println("PM");
+  } else {
+    display.println("AM");
+  }
+  display.setCursor(0, 21);
+  display.setTextColor(RED);
+  display.print("iT:");
+  display.print(tempAvgHolder2);
+  display.drawCircle(100, 25, 2, RED);
+  display.drawCircle(100, 25, 3, RED);
+  display.println(" C");
+  display.setTextColor(CYAN);
+  display.print("iH: ");
+  display.print(abshumBME);
+  display.println("g");
+  display.setTextColor(MAGENTA);
+  display.print("oT:");
+  display.print(bridgetemp);
+  display.drawCircle(100, 57, 2, MAGENTA);
+  display.drawCircle(100, 57, 3, MAGENTA);
+  display.println(" C");
+  display.setTextColor(LIGHTBLUE);
+  display.print("oH: ");
+  display.print(bridgehum);
+  display.println("g");
+
+      float Rs = (ads.computeVolts(gasRead) * 47000) / (5.0 - ads.computeVolts(gasRead));
+    float correctedGasInst = (Rs / correctionFactor(tempAvgHolder2, humAvgHolder2));
+  display.setTextColor(ORANGE);
+  display.print("GAS: ");
+  display.print((int)(correctedGasInst));
+  display.println((char)233);
+
   display.setTextColor(TEXTCOLOR, RGBto565(pmR, pmG, pmB));
   display.print(pm25in);
   display.print(" ");
   display.setTextColor(TEXTCOLOR, RGBto565(pmR2, pmG2, pmB2));
-  display.print(pm25out);
-  display.print(" ");
-  display.fillRect(0,117,128,11, BLACK);
+  if (pm25out < 10) {display.print(" ");}
+  if (pm25in >= 10) {display.print(pm25out, 1);} else {display.print(pm25out, 2);}
+  display.setTextColor(BLACK, BLACK);
+  display.print("   ");
+  display.fillRect(120, 107, 8, 21, BLACK);
+
+
+
+  oldpm25in = pm25in;
+  oldpm25out = pm25out;
+  oldtempAvgHolder2 = tempAvgHolder2;
+  oldhumAvgHolder2 = humAvgHolder2;
+  oldbridgetemp = bridgetemp;
+  oldbridgehum = bridgehum;
+  oldabshumBME = abshumBME;
+  oldcorrectedGas = (int)(correctedGasInst);
+  oldtempprobe = tempprobe;
+}
+
+void startDisplay() {
+  display.drawFastHLine(0, 17, 118, WHITE);
+    display.fillRect(0, 117, 128, 16, BLACK);
   display.setCursor(0, 117);
   display.setTextSize(1);
   display.setTextColor(YELLOW);
   display.print("PM2.5 in / PM2.5 out");
-
-  
-oldpm25in = pm25in;
-oldpm25out = pm25out;
-oldtempAvgHolder2 = tempAvgHolder2;
-oldhumAvgHolder2 = humAvgHolder2;
-oldabshumBME = abshumBME;
-oldtdsValue = (int)(tdsValue);
-oldgasRead = (int)(gasRead);
-oldtempprobe = tempprobe;
-
 }
 
 
 //============================================CUBE BEGIN
-const float sin_d[] = { 
-  0,0.17,0.34,0.5,0.64,0.77,0.87,0.94,0.98,1,0.98,0.94,
-  0.87,0.77,0.64,0.5,0.34,0.17,0,-0.17,-0.34,-0.5,-0.64,
-  -0.77,-0.87,-0.94,-0.98,-1,-0.98,-0.94,-0.87,-0.77,
-  -0.64,-0.5,-0.34,-0.17 };
-const float cos_d[] = { 
-  1,0.98,0.94,0.87,0.77,0.64,0.5,0.34,0.17,0,-0.17,-0.34,
-  -0.5,-0.64,-0.77,-0.87,-0.94,-0.98,-1,-0.98,-0.94,-0.87,
-  -0.77,-0.64,-0.5,-0.34,-0.17,0,0.17,0.34,0.5,0.64,0.77,
-  0.87,0.94,0.98};
+const float sin_d[] = {
+  0, 0.17, 0.34, 0.5, 0.64, 0.77, 0.87, 0.94, 0.98, 1, 0.98, 0.94,
+  0.87, 0.77, 0.64, 0.5, 0.34, 0.17, 0, -0.17, -0.34, -0.5, -0.64,
+  -0.77, -0.87, -0.94, -0.98, -1, -0.98, -0.94, -0.87, -0.77,
+  -0.64, -0.5, -0.34, -0.17
+};
+const float cos_d[] = {
+  1, 0.98, 0.94, 0.87, 0.77, 0.64, 0.5, 0.34, 0.17, 0, -0.17, -0.34,
+  -0.5, -0.64, -0.77, -0.87, -0.94, -0.98, -1, -0.98, -0.94, -0.87,
+  -0.77, -0.64, -0.5, -0.34, -0.17, 0, 0.17, 0.34, 0.5, 0.64, 0.77,
+  0.87, 0.94, 0.98
+};
 const float d = 10;
-float px[] = { 
-  -d,  d,  d, -d, -d,  d,  d, -d };
-float py[] = { 
-  -d, -d,  d,  d, -d, -d,  d,  d };
-float pz[] = { 
-  -d, -d, -d, -d,  d,  d,  d,  d };
+float px[] = {
+  -d, d, d, -d, -d, d, d, -d
+};
+float py[] = {
+  -d, -d, d, d, -d, -d, d, d
+};
+float pz[] = {
+  -d, -d, -d, -d, d, d, d, d
+};
 
 float p2x[] = {
-  0,0,0,0,0,0,0,0};
+  0, 0, 0, 0, 0, 0, 0, 0
+};
 float p2y[] = {
-  0,0,0,0,0,0,0,0};
+  0, 0, 0, 0, 0, 0, 0, 0
+};
 
 int r[] = {
-  0,0,0};
+  0, 0, 0
+};
 //=========================================================
 
-void doCube(){
-  for (int k=0;k<50;k++) {
+void doCube() {
+  for (int k = 0; k < 50; k++) {
     //display.fillScreen(BLACK);
-  r[0]=r[0]+1;
-  r[1]=r[1]+1;
-  if (r[0] == 36) r[0] = 0;
-  if (r[1] == 36) r[1] = 0;
-  if (r[2] == 36) r[2] = 0;
-  for (int i=0;i<8;i++)
-  {
-     
-    float px2 = px[i];
-    float py2 = cos_d[r[0]]*py[i] - sin_d[r[0]]*pz[i];
-    float pz2 = sin_d[r[0]]*py[i] + cos_d[r[0]]*pz[i];
+    r[0] = r[0] + 1;
+    r[1] = r[1] + 1;
+    if (r[0] == 36) r[0] = 0;
+    if (r[1] == 36) r[1] = 0;
+    if (r[2] == 36) r[2] = 0;
+    for (int i = 0; i < 8; i++) {
 
-    float px3 = cos_d[r[1]]*px2 + sin_d[r[1]]*pz2;
-    float py3 = py2;
-    float pz3 = -sin_d[r[1]]*px2 + cos_d[r[1]]*pz2;
+      float px2 = px[i];
+      float py2 = cos_d[r[0]] * py[i] - sin_d[r[0]] * pz[i];
+      float pz2 = sin_d[r[0]] * py[i] + cos_d[r[0]] * pz[i];
 
-    float ax = cos_d[r[2]]*px3 - sin_d[r[2]]*py3;
-    float ay = sin_d[r[2]]*px3 + cos_d[r[2]]*py3;
-    float az = pz3-190;
+      float px3 = cos_d[r[1]] * px2 + sin_d[r[1]] * pz2;
+      float py3 = py2;
+      float pz3 = -sin_d[r[1]] * px2 + cos_d[r[1]] * pz2;
 
-    p2x[i] = ((display.width())/2)+ax*500/az;
-    p2y[i] = ((display.height())/2)+ay*500/az;
-  }
-  for (int i=0;i<3;i++) {
-    display.drawLine(p2x[i],p2y[i],p2x[i+1],p2y[i+1],WHITE);
-    display.drawLine(p2x[i+4],p2y[i+4],p2x[i+5],p2y[i+5],RED);
-    display.drawLine(p2x[i],p2y[i],p2x[i+4],p2y[i+4],BLUE);
-  }   
-  display.drawLine(p2x[3],p2y[3],p2x[0],p2y[0],MAGENTA);
-  display.drawLine(p2x[7],p2y[7],p2x[4],p2y[4],GREEN);
-  display.drawLine(p2x[3],p2y[3],p2x[7],p2y[7],YELLOW);
-  //delay(20);
-    for (int i=0;i<3;i++) {
-    display.drawLine(p2x[i],p2y[i],p2x[i+1],p2y[i+1],BLACK);
-    display.drawLine(p2x[i+4],p2y[i+4],p2x[i+5],p2y[i+5],BLACK);
-    display.drawLine(p2x[i],p2y[i],p2x[i+4],p2y[i+4],BLACK);
-  }   
-    display.drawLine(p2x[3],p2y[3],p2x[0],p2y[0],BLACK);
-  display.drawLine(p2x[7],p2y[7],p2x[4],p2y[4],BLACK);
-  display.drawLine(p2x[3],p2y[3],p2x[7],p2y[7],BLACK);
+      float ax = cos_d[r[2]] * px3 - sin_d[r[2]] * py3;
+      float ay = sin_d[r[2]] * px3 + cos_d[r[2]] * py3;
+      float az = pz3 - 190;
+
+      p2x[i] = ((display.width()) / 2) + ax * 500 / az;
+      p2y[i] = ((display.height()) / 2) + ay * 500 / az;
+    }
+    for (int i = 0; i < 3; i++) {
+      display.drawLine(p2x[i], p2y[i], p2x[i + 1], p2y[i + 1], WHITE);
+      display.drawLine(p2x[i + 4], p2y[i + 4], p2x[i + 5], p2y[i + 5], RED);
+      display.drawLine(p2x[i], p2y[i], p2x[i + 4], p2y[i + 4], BLUE);
+    }
+    display.drawLine(p2x[3], p2y[3], p2x[0], p2y[0], MAGENTA);
+    display.drawLine(p2x[7], p2y[7], p2x[4], p2y[4], GREEN);
+    display.drawLine(p2x[3], p2y[3], p2x[7], p2y[7], YELLOW);
+    //delay(20);
+    for (int i = 0; i < 3; i++) {
+      display.drawLine(p2x[i], p2y[i], p2x[i + 1], p2y[i + 1], BLACK);
+      display.drawLine(p2x[i + 4], p2y[i + 4], p2x[i + 5], p2y[i + 5], BLACK);
+      display.drawLine(p2x[i], p2y[i], p2x[i + 4], p2y[i + 4], BLACK);
+    }
+    display.drawLine(p2x[3], p2y[3], p2x[0], p2y[0], BLACK);
+    display.drawLine(p2x[7], p2y[7], p2x[4], p2y[4], BLACK);
+    display.drawLine(p2x[3], p2y[3], p2x[7], p2y[7], BLACK);
   }
 }
 
-void setup() {
 
+
+
+
+void setup() {
+  bridgetemp = 20;
+  bridgehum = 10;
+  oldbridgetemp = 20;
+  oldbridgehum = 10;
   Serial.begin(115200);
-      display.begin();
-   display.clearScreen();
-     display.setTextColor(YELLOW);
-      display.setTextSize(1);
+  display.begin();
+  display.setTextWrap(false);
+  display.clearScreen();
+  display.setTextColor(YELLOW);
+  display.setTextSize(1);
   //display.setCursor(0,0);
   display.print("Please wait, connecting to wifi...");
 
@@ -662,223 +734,204 @@ void setup() {
     display.print(".");
   }
 
-delay(500);
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-     delay(500);
+  delay(500);
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  delay(500);
   Serial.println("");
   Serial.print("Connected to ");
   Serial.println(ssid);
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-      Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
-    Blynk.connect();
-      terminal.println("**********COSTELLOOOO v0.7***********");
-      
-    terminal.print("Connected to ");
-    terminal.println(ssid);
-    terminal.print("IP address: ");
-    terminal.println(WiFi.localIP());
-    
-    printLocalTime();
-    terminal.flush();  
-    display.setTextColor(GREEN);
-    display.println("");
-    display.print("Connected to ");
-    display.println(ssid);
-    display.print("IP address: ");
-    display.println(WiFi.localIP());
-     displayLocalTime();
+  Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
+  Blynk.connect();
+  terminal.println("**********COSTELLOOOO v1.0***********");
+
+  terminal.print("Connected to ");
+  terminal.println(ssid);
+  terminal.print("IP address: ");
+  terminal.println(WiFi.localIP());
+
+  printLocalTime();
+  terminal.flush();
+  display.setTextColor(GREEN);
+  display.println("");
+  display.print("Connected to ");
+  display.println(ssid);
+  display.print("IP address: ");
+  display.println(WiFi.localIP());
+  displayLocalTime();
 
 
-    bme.begin(0x76);
- bme.setSampling(Adafruit_BME280::MODE_FORCED,
-               Adafruit_BME280::SAMPLING_X1, // temperature
-                Adafruit_BME280::SAMPLING_X1, // pressure
-                Adafruit_BME280::SAMPLING_X1, // humidity
-                Adafruit_BME280::FILTER_OFF   );
-                
-   
-                  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+  bme.begin(0x76);
+  bme.setSampling(Adafruit_BME280::MODE_FORCED,
+                  Adafruit_BME280::SAMPLING_X1,  // temperature
+                  Adafruit_BME280::SAMPLING_X1,  // pressure
+                  Adafruit_BME280::SAMPLING_X1,  // humidity
+                  Adafruit_BME280::FILTER_OFF);
+
+
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
     request->send(200, "text/plain", "I am Costello");
   });
 
-  AsyncElegantOTA.begin(&server);    // Start ElegantOTA
+  AsyncElegantOTA.begin(&server);  // Start ElegantOTA
   server.begin();
   terminal.println("HTTP server started");
   terminal.flush();
   ads.setGain(GAIN_TWO);
-    if (!ads.begin())
-  {
+  if (!ads.begin()) {
     terminal.println("Failed to initialize ADS.");
-    while (1);
+    while (1)
+      ;
+  } else {
+    terminal.println("ADS initialized");
   }
-  else {terminal.println("ADS initialized");}
-  terminal.println("Startup complete.");bridgetemp
-   terminal.flush();
-   delay(3000);
-           bme.takeForcedMeasurement();       
-        tempAvgHolder2 = (bme.readTemperature() + tempoffset);
-        humAvgHolder2 = bme.readHumidity();
-        ads.setGain(GAIN_SIXTEEN);
-        gasRead = ads.readADC_SingleEnded(3);
-        gasRead = ads.readADC_SingleEnded(3);
-        ads.setGain(GAIN_TWO);
-        gasAvg.push(gasRead);
-        if (tempAvgHolder2 > 0) {tempAvg.push(tempAvgHolder2);}
-        if (humAvgHolder2 > 0) {humAvg.push(humAvgHolder2);}
-   display.clearScreen();
+  terminal.println("Startup complete.");
+  terminal.flush();
+  delay(3000);
+  bme.takeForcedMeasurement();
+  tempAvgHolder2 = (bme.readTemperature() + tempoffset);
+  humAvgHolder2 = bme.readHumidity();
+  ads.setGain(GAIN_SIXTEEN);
+  gasRead = ads.readADC_SingleEnded(3);
+  gasRead = ads.readADC_SingleEnded(3);
+  ads.setGain(GAIN_TWO);
+  gasAvg.push(gasRead);
+  if (tempAvgHolder2 > 0) { tempAvg.push(tempAvgHolder2); }
+  if (humAvgHolder2 > 0) { humAvg.push(humAvgHolder2); }
+  display.clearScreen();
   doCube();
   display.clearScreen();
+        display.setTextSize(2);
+        startDisplay();
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-Blynk.run();
+  Blynk.run();
 
   static unsigned long analogSampleTimepoint = millis();
 
-  if(millis()-analogSampleTimepoint > 40U){     //every 40 milliseconds,read the analog value from the ADC
+  if (millis() - analogSampleTimepoint > 40U) {  //every 40 milliseconds,read the analog value from the ADC
     analogSampleTimepoint = millis();
-    analogBuffer[analogBufferIndex] = ads.readADC_SingleEnded(1);    //read the analog value and store into the buffer
+    analogBuffer[analogBufferIndex] = ads.readADC_SingleEnded(1);  //read the analog value and store into the buffer
     analogBufferIndex++;
-    if(analogBufferIndex == SCOUNT){ 
+    if (analogBufferIndex == SCOUNT) {
       analogBufferIndex = 0;
     }
   }
 
-    static unsigned long printTimepoint = millis();
-  if(millis()-printTimepoint > 800U){
+  static unsigned long printTimepoint = millis();
+  if (millis() - printTimepoint > 800U) {
     printTimepoint = millis();
-    for(copyIndex=0; copyIndex<SCOUNT; copyIndex++){
+    for (copyIndex = 0; copyIndex < SCOUNT; copyIndex++) {
       analogBufferTemp[copyIndex] = analogBuffer[copyIndex];
-      float medianNum = getMedianNum(analogBufferTemp,SCOUNT);
+      float medianNum = getMedianNum(analogBufferTemp, SCOUNT);
       a2Avg.push(medianNum);
       // read the analog value more stable by the median filtering algorithm, and convert to voltage value
-      averageVoltage = getMedianNum(analogBufferTemp,SCOUNT) * (float)VREF / 65535.0;
-      
-      //temperature compensation formula: fFinalResult(25^C) = fFinalResult(current)/(1.0+0.02*(fTP-25.0)); 
-      float compensationCoefficient = 1.0+0.019*(tempprobe-25.0);
-      float compensationCoefficient2 = 1.0+0.019*(25-25.0);
+      averageVoltage = getMedianNum(analogBufferTemp, SCOUNT) * (float)VREF / 65535.0;
+
+      //temperature compensation formula: fFinalResult(25^C) = fFinalResult(current)/(1.0+0.02*(fTP-25.0));
+      float compensationCoefficient = 1.0 + 0.019 * (tempprobe - 25.0);
+      float compensationCoefficient2 = 1.0 + 0.019 * (25 - 25.0);
       //temperature compensation
-      float compensationVoltage=averageVoltage/compensationCoefficient;
-      float compensationVoltage2=averageVoltage/compensationCoefficient2;
-      
+      float compensationVoltage = averageVoltage / compensationCoefficient;
+      float compensationVoltage2 = averageVoltage / compensationCoefficient2;
+
       //convert voltage value to tds value
-      tdsValue=(133.42*compensationVoltage*compensationVoltage*compensationVoltage - 255.86*compensationVoltage*compensationVoltage + 857.39*compensationVoltage)*0.5;
-      uncompensatedTdsValue=(133.42*compensationVoltage2*compensationVoltage2*compensationVoltage2 - 255.86*compensationVoltage2*compensationVoltage2 + 857.39*compensationVoltage2)*0.5;
-      
+      tdsValue = (133.42 * compensationVoltage * compensationVoltage * compensationVoltage - 255.86 * compensationVoltage * compensationVoltage + 857.39 * compensationVoltage) * 0.5;
+      uncompensatedTdsValue = (133.42 * compensationVoltage2 * compensationVoltage2 * compensationVoltage2 - 255.86 * compensationVoltage2 * compensationVoltage2 + 857.39 * compensationVoltage2) * 0.5;
+
       //Serial.print("voltage:");
       //Serial.print(averageVoltage,2);
       //Serial.print("V   ");
       if (!firstTDS) {
-          if (tdsValue > 100) {
-            ppmAvg.push(tdsValue);
-            ppmAvg2.push(uncompensatedTdsValue);
-          }
-      }
-      else {
+        if (tdsValue > 100) {
+          ppmAvg.push(tdsValue);
+          ppmAvg2.push(uncompensatedTdsValue);
+        }
+      } else {
         ppmAvg.push(tdsValue);
         ppmAvg2.push(uncompensatedTdsValue);
-        }
+      }
       firstTDS = false;
-
     }
   }
 
 
-    if  (millis() - millisBlynk >= 30000)  //if it's been 30 seconds
-    {
-      bme.takeForcedMeasurement();
-        
-        presBME = (bme.readPressure() / 100.0F);
-        humAvgHolder = humAvg.mean();
-        tempAvgHolder = tempAvg.mean();
-        absHumAvgHolder = (6.112 * pow(2.71828, ((17.67 * tempAvgHolder)/(tempAvgHolder + 243.5))) * humAvgHolder * 2.1674)/(273.15 + tempAvgHolder);
-        millisBlynk = millis();
+  if (millis() - millisBlynk >= 30000)  //if it's been 30 seconds
+  {
+    bme.takeForcedMeasurement();
 
-        Blynk.virtualWrite(V1, presBME);
-        Blynk.virtualWrite(V2, tempAvgHolder);
-        Blynk.virtualWrite(V3, humAvgHolder);
-        Blynk.virtualWrite(V4, absHumAvgHolder);
-        Blynk.virtualWrite(V5, tempprobe);
-       //  Blynk.virtualWrite(V6, raw);
- //Blynk.virtualWrite(V7, ppm);
- 
- 
- //float ppmAvgHolder = ppmAvg.mean();
-  Blynk.virtualWrite(V9, gasAvg.mean());
-  Blynk.virtualWrite(V11, ppmAvg.mean());
-  Blynk.virtualWrite(V8, ppmAvg2.mean());
-  Blynk.virtualWrite(V12, a2Avg.mean());
-  float Rs = (ads.computeVolts(gasAvg.mean())*47000)/(5.0-ads.computeVolts(gasAvg.mean()));
-  correctedGas = (Rs / correctionFactor(tempAvgHolder, humAvgHolder));
-  Blynk.virtualWrite(V13, correctedGas);
+    presBME = (bme.readPressure() / 100.0F);
+    humAvgHolder = humAvg.mean();
+    tempAvgHolder = tempAvg.mean();
+    absHumAvgHolder = (6.112 * pow(2.71828, ((17.67 * tempAvgHolder) / (tempAvgHolder + 243.5))) * humAvgHolder * 2.1674) / (273.15 + tempAvgHolder);
+    millisBlynk = millis();
 
-    }
-
-    if  (millis() - millisTFT >= 3000)  //if it's been 3 seconds
-    {
-      //bme.takeForcedMeasurement();
-      tempprobe = readDStemp();
-        //tempBME = (bme.readTemperature() + tempoffset);
-        //presBME = (bme.readPressure() / 100.0F);
-        //humBME = bme.readHumidity();
-        if ((tempAvgHolder2 > 0) && (humAvgHolder2 > 0)){
-        abshumBME = (6.112 * pow(2.71828, ((17.67 * tempAvgHolder2)/(tempAvgHolder2 + 243.5))) * humAvgHolder2 * 2.1674)/(273.15 + tempAvgHolder2);
-        doDisplay();
-        }
-        millisTFT = millis();
-        
-    }
-    
-    if  (millis() - millisAvg >= 1000)  //if it's been 1 second
-    {
-        millisAvg = millis();
-        bme.takeForcedMeasurement();       
-        tempAvgHolder2 = (bme.readTemperature() + tempoffset);
-        humAvgHolder2 = bme.readHumidity();
-        ads.setGain(GAIN_SIXTEEN);
-        gasRead = ads.readADC_SingleEnded(3);
-        gasRead = ads.readADC_SingleEnded(3);
-        ads.setGain(GAIN_TWO);
-        gasAvg.push(gasRead);
-        if (tempAvgHolder2 > 0) {tempAvg.push(tempAvgHolder2);}
-        if (humAvgHolder2 > 0) {humAvg.push(humAvgHolder2);}
-    }
-}
+    Blynk.virtualWrite(V1, presBME);
+    Blynk.virtualWrite(V2, tempAvgHolder);
+    Blynk.virtualWrite(V3, humAvgHolder);
+    Blynk.virtualWrite(V4, absHumAvgHolder);
+    Blynk.virtualWrite(V5, tempprobe);
+    //  Blynk.virtualWrite(V6, raw);
+    //Blynk.virtualWrite(V7, ppm);
 
 
-
-void printLocalTime2(){
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)){
-    Serial.println("Failed to obtain time");
-    return;
+    //float ppmAvgHolder = ppmAvg.mean();
+    Blynk.virtualWrite(V9, gasAvg.mean());
+    Blynk.virtualWrite(V11, ppmAvg.mean());
+    Blynk.virtualWrite(V8, ppmAvg2.mean());
+    Blynk.virtualWrite(V12, a2Avg.mean());
+    float Rs = (ads.computeVolts(gasAvg.mean()) * 47000) / (5.0 - ads.computeVolts(gasAvg.mean()));
+    correctedGas = (Rs / correctionFactor(tempAvgHolder, humAvgHolder));
+    Blynk.virtualWrite(V13, correctedGas);
   }
-  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
-  Serial.print("Day of week: ");
-  Serial.println(&timeinfo, "%A");
-  Serial.print("Month: ");
-  Serial.println(&timeinfo, "%B");
-  Serial.print("Day of Month: ");
-  Serial.println(&timeinfo, "%d");
-  Serial.print("Year: ");
-  Serial.println(&timeinfo, "%Y");
-  Serial.print("Hour: ");
-  Serial.println(&timeinfo, "%H");
-  Serial.print("Hour (12 hour format): ");
-  Serial.println(&timeinfo, "%I");
-  Serial.print("Minute: ");
-  Serial.println(&timeinfo, "%M");
-  Serial.print("Second: ");
-  Serial.println(&timeinfo, "%S");
 
-  Serial.println("Time variables");
-  char timeHour[3];
-  strftime(timeHour,3, "%H", &timeinfo);
-  Serial.println(timeHour);
-  char timeWeekDay[10];
-  strftime(timeWeekDay,10, "%A", &timeinfo);
-  Serial.println(timeWeekDay);
-  Serial.println();
+  if (millis() - millisTFT >= 3000)  //if it's been 3 seconds
+  {
+    //bme.takeForcedMeasurement();
+    tempprobe = readDStemp();
+    //tempBME = (bme.readTemperature() + tempoffset);
+    //presBME = (bme.readPressure() / 100.0F);
+    //humBME = bme.readHumidity();
+    if ((tempAvgHolder2 > 0) && (humAvgHolder2 > 0)) {
+      abshumBME = (6.112 * pow(2.71828, ((17.67 * tempAvgHolder2) / (tempAvgHolder2 + 243.5))) * humAvgHolder2 * 2.1674) / (273.15 + tempAvgHolder2);
+      doDisplay();
+    }
+    millisTFT = millis();
+  }
+
+  if (millis() - millisAvg >= 1000)  //if it's been 1 second
+  {
+      /*display.setTextSize(2);
+      if (hours > 9) {display.setCursor(71, 0);} else {display.setCursor(61, 0);}
+      display.setTextColor(BLACK);
+      if (secs < 10) { display.print("0"); }
+      display.print(secs);
+
+
+      struct tm timeinfo;
+      getLocalTime(&timeinfo);
+      secs = timeinfo.tm_sec;
+
+      display.setCursor(0, 0);
+      display.setTextColor(WHITE);
+      //if (hours > 9) {display.print("      ");} else {display.print("     ");}
+      if (hours > 9) {display.setCursor(71, 0);} else {display.setCursor(61, 0);}
+      if (secs < 10) { display.print("0"); }
+      display.print(secs);*/
+
+    millisAvg = millis();
+    bme.takeForcedMeasurement();
+    tempAvgHolder2 = (bme.readTemperature() + tempoffset);
+    humAvgHolder2 = bme.readHumidity();
+    ads.setGain(GAIN_SIXTEEN);
+    gasRead = ads.readADC_SingleEnded(3);
+    gasRead = ads.readADC_SingleEnded(3);
+    ads.setGain(GAIN_TWO);
+    gasAvg.push(gasRead);
+    if (tempAvgHolder2 > 0) { tempAvg.push(tempAvgHolder2); }
+    if (humAvgHolder2 > 0) { humAvg.push(humAvgHolder2); }
+  }
 }
