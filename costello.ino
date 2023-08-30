@@ -601,7 +601,7 @@ void doDisplay() {
   if (pm25in >= 10) {display.print(pm25out, 1);} else {display.print(pm25out, 2);}
   display.setTextColor(BLACK, BLACK);
   display.print("   ");
-  display.fillRect(120, 107, 8, 21, BLACK);
+  display.fillRect(119, 100, 10, 30, BLACK);
 
 
 
