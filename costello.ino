@@ -175,7 +175,7 @@ const char* password = "springchicken";
 
 
 #define SEALEVELPRESSURE_HPA (1013.25)
-#define tempoffset -0.9F
+#define tempoffset -1.8F
 
 char auth[] = "pO--Yj8ksH2fjJLMW6yW9trkHBhd9-wc";  //BLYNK
 
