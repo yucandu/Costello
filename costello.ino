@@ -6,8 +6,8 @@
 #include <Adafruit_SPIDevice.h>
 #include <Adafruit_BME280.h>
 #include <Adafruit_Sensor.h>
-#include <Adafruit_GFX.h>
-#include "TFT_ILI9163C.h"
+
+
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
@@ -82,7 +82,7 @@ uint16_t TEXTCOLOR = YELLOW;
 #define TFT_RST 0
 
 
-TFT_ILI9163C display = TFT_ILI9163C(__CS, __A0, __DC);
+
 
 float correctionFactor(float temp, float hum) {
   return (aaH * hum * temp) + (baH * temp) + (abH * hum) + bbH;
@@ -215,7 +215,6 @@ BLYNK_WRITE(V10) {
     terminal.println("readgas");
     terminal.println("readtds");
     terminal.println("pushboth");
-    terminal.println("cube");
     terminal.println("==End of list.==");
   }
   if (String("wifi") == param.asStr()) {
@@ -238,12 +237,7 @@ BLYNK_WRITE(V10) {
   if (String("pushboth") == param.asStr()) {
     printtemp3();
   }
-  if (String("cube") == param.asStr()) {
-    display.clearScreen();
-    doCube();
-    display.clearScreen();
-    startDisplay();
-  }
+
   if (String("grey") == param.asStr()) {
     TEXTCOLOR = GREY;
   }
@@ -278,7 +272,7 @@ void displayLocalTime() {
   struct tm* timeinfo;
   time(&rawtime);
   timeinfo = localtime(&rawtime);
-  display.print(asctime(timeinfo));
+  //display.print(asctime(timeinfo));
 }
 
 
@@ -451,261 +445,12 @@ uint16_t RGBto565(uint8_t r, uint8_t g, uint8_t b) {
 char time_value[20];
 int hours, mins, secs;
 
-void doDisplay() {
-  //display.clearScreen();
-  //time_t now = time(nullptr);
-  //String time = String(ctime(&now));
-  //time.trim();
-  //Serial.println(time);
-  //time.substring(11, 19).toCharArray(time_value, 10);
-
-  pmG = 55 - pm25in;
-  if (pmG < 0) { pmG = 0; }
-  pmG *= (255.0 / 55.0);
-  if (pmG > 255) { pmG = 255; }
-
-  pmR = pm25in;
-  if (pmR < 0) { pmR = 0; }
-  pmR *= (255.0 / 55.0);
-  if (pmR > 255) { pmR = 255; }
-
-  pmB = pm25in - 100;
-  if (pmB < 0) { pmB = 0; }
-  pmB *= (255.0 / 55.0);
-  if (pmB > 255) { pmB = 255; }
-
-  pmG2 = 55 - pm25out;
-  if (pmG2 < 0) { pmG2 = 0; }
-  pmG2 *= (255.0 / 55.0);
-  if (pmG2 > 255) { pmG2 = 255; }
-
-  pmR2 = pm25out;
-  if (pmR2 < 0) { pmR2 = 0; }
-  pmR2 *= (255.0 / 55.0);
-  if (pmR2 > 255) { pmR2 = 255; }
-
-  pmB2 = pm25out - 100;
-  if (pmB2 < 0) { pmB2 = 0; }
-  pmB2 *= (255.0 / 55.0);
-  if (pmB2 > 255) { pmB2 = 255; }
-
-  display.setTextScale(2);
-  display.setCursor(0, 0);
-  display.setTextColor(BLACK);
-  display.print(hours);
-  display.print(":");
-  if (mins < 10) { display.print("0"); }
-  display.print(mins);
-  display.print(":");
-  if (secs < 10) { display.print("0"); }
-  display.print(secs);
-  if (hours < 10) {display.print(" ");}
-  if (isPM) {
-    display.println("PM");
-  } else {
-    display.println("AM");
-  }
-  display.setCursor(0, 21);
-  display.setTextColor(RED);
-  display.print("iT:");
-  display.setTextColor(BLACK);
-  display.print(oldtempAvgHolder2);
-  display.println(" C");
-  display.setTextColor(CYAN);
-  display.print("iH: ");
-  display.setTextColor(BLACK);
-  display.print(oldabshumBME);
-  display.println("g");
-  display.setTextColor(MAGENTA);
-  display.print("oT:");
-  display.setTextColor(BLACK);
-  display.print(oldbridgetemp);
-  display.println(" C");
-  display.setTextColor(LIGHTBLUE);
-  display.print("oH: ");
-  display.setTextColor(BLACK);
-  display.print(oldbridgehum);
-  display.println("g");
-  display.setTextColor(ORANGE);
-
-  display.print("GAS: ");
-  display.setTextColor(BLACK);
-  display.print((int)(oldcorrectedGas));
-  display.println((char)233);
-
-
-  struct tm timeinfo;
-  getLocalTime(&timeinfo);
-  hours = timeinfo.tm_hour;
-  mins = timeinfo.tm_min;
-  secs = timeinfo.tm_sec;
-  if (hours > 12) {
-    hours -= 12;
-    isPM = true;
-  } else {
-    isPM = false;
-  }
-  if (hours == 12) {isPM = true;}
-  if (hours == 0) {hours = 12;}
-  
-  display.setTextScale(2);
-  display.setCursor(0, 0);
-  display.setTextColor(WHITE);
-  display.print(hours);
-  display.print(":");
-  if (mins < 10) { display.print("0"); }
-  display.print(mins);
-  display.print(":");
-  if (secs < 10) { display.print("0"); }
-  display.print(secs);
-  if (hours < 10) {display.print(" ");}
-  if (isPM) {
-    display.println("PM");
-  } else {
-    display.println("AM");
-  }
-  display.setCursor(0, 21);
-  display.setTextColor(RED);
-  display.print("iT:");
-  display.print(tempAvgHolder2);
-  display.drawCircle(100, 25, 2, RED);
-  display.drawCircle(100, 25, 3, RED);
-  display.println(" C");
-  display.setTextColor(CYAN);
-  display.print("iH: ");
-  display.print(abshumBME);
-  display.println("g");
-  display.setTextColor(MAGENTA);
-  display.print("oT:");
-  display.print(bridgetemp);
-  display.drawCircle(100, 57, 2, MAGENTA);
-  display.drawCircle(100, 57, 3, MAGENTA);
-  display.println(" C");
-  display.setTextColor(LIGHTBLUE);
-  display.print("oH: ");
-  display.print(bridgehum);
-  display.println("g");
-
-      float Rs = (ads.computeVolts(gasRead) * 47000) / (5.0 - ads.computeVolts(gasRead));
-    float correctedGasInst = (Rs / correctionFactor(tempAvgHolder2, humAvgHolder2));
-  display.setTextColor(ORANGE);
-  display.print("GAS: ");
-  display.print((int)(correctedGasInst));
-  display.println((char)233);
-
-  display.setTextColor(TEXTCOLOR, RGBto565(pmR, pmG, pmB));
-  display.print(pm25in);
-  display.print(" ");
-  display.setTextColor(TEXTCOLOR, RGBto565(pmR2, pmG2, pmB2));
-  if (pm25out < 10) {display.print(" ");}
-  if (pm25in >= 10) {display.print(pm25out, 1);} else {display.print(pm25out, 2);}
-  display.setTextColor(BLACK, BLACK);
-  display.print("   ");
-  display.fillRect(119, 100, 10, 30, BLACK);
 
 
 
-  oldpm25in = pm25in;
-  oldpm25out = pm25out;
-  oldtempAvgHolder2 = tempAvgHolder2;
-  oldhumAvgHolder2 = humAvgHolder2;
-  oldbridgetemp = bridgetemp;
-  oldbridgehum = bridgehum;
-  oldabshumBME = abshumBME;
-  oldcorrectedGas = (int)(correctedGasInst);
-  oldtempprobe = tempprobe;
-}
-
-void startDisplay() {
-  display.drawFastHLine(0, 17, 118, WHITE);
-    display.fillRect(0, 117, 128, 16, BLACK);
-  display.setCursor(0, 117);
-  display.setTextScale(1);
-  display.setTextColor(YELLOW);
-  display.print("PM2.5 in / PM2.5 out");
-}
 
 
-//============================================CUBE BEGIN
-const float sin_d[] = {
-  0, 0.17, 0.34, 0.5, 0.64, 0.77, 0.87, 0.94, 0.98, 1, 0.98, 0.94,
-  0.87, 0.77, 0.64, 0.5, 0.34, 0.17, 0, -0.17, -0.34, -0.5, -0.64,
-  -0.77, -0.87, -0.94, -0.98, -1, -0.98, -0.94, -0.87, -0.77,
-  -0.64, -0.5, -0.34, -0.17
-};
-const float cos_d[] = {
-  1, 0.98, 0.94, 0.87, 0.77, 0.64, 0.5, 0.34, 0.17, 0, -0.17, -0.34,
-  -0.5, -0.64, -0.77, -0.87, -0.94, -0.98, -1, -0.98, -0.94, -0.87,
-  -0.77, -0.64, -0.5, -0.34, -0.17, 0, 0.17, 0.34, 0.5, 0.64, 0.77,
-  0.87, 0.94, 0.98
-};
-const float d = 10;
-float px[] = {
-  -d, d, d, -d, -d, d, d, -d
-};
-float py[] = {
-  -d, -d, d, d, -d, -d, d, d
-};
-float pz[] = {
-  -d, -d, -d, -d, d, d, d, d
-};
 
-float p2x[] = {
-  0, 0, 0, 0, 0, 0, 0, 0
-};
-float p2y[] = {
-  0, 0, 0, 0, 0, 0, 0, 0
-};
-
-int r[] = {
-  0, 0, 0
-};
-//=========================================================
-
-void doCube() {
-  for (int k = 0; k < 50; k++) {
-    //display.fillScreen(BLACK);
-    r[0] = r[0] + 1;
-    r[1] = r[1] + 1;
-    if (r[0] == 36) r[0] = 0;
-    if (r[1] == 36) r[1] = 0;
-    if (r[2] == 36) r[2] = 0;
-    for (int i = 0; i < 8; i++) {
-
-      float px2 = px[i];
-      float py2 = cos_d[r[0]] * py[i] - sin_d[r[0]] * pz[i];
-      float pz2 = sin_d[r[0]] * py[i] + cos_d[r[0]] * pz[i];
-
-      float px3 = cos_d[r[1]] * px2 + sin_d[r[1]] * pz2;
-      float py3 = py2;
-      float pz3 = -sin_d[r[1]] * px2 + cos_d[r[1]] * pz2;
-
-      float ax = cos_d[r[2]] * px3 - sin_d[r[2]] * py3;
-      float ay = sin_d[r[2]] * px3 + cos_d[r[2]] * py3;
-      float az = pz3 - 190;
-
-      p2x[i] = ((display.width()) / 2) + ax * 500 / az;
-      p2y[i] = ((display.height()) / 2) + ay * 500 / az;
-    }
-    for (int i = 0; i < 3; i++) {
-      display.drawLine(p2x[i], p2y[i], p2x[i + 1], p2y[i + 1], WHITE);
-      display.drawLine(p2x[i + 4], p2y[i + 4], p2x[i + 5], p2y[i + 5], RED);
-      display.drawLine(p2x[i], p2y[i], p2x[i + 4], p2y[i + 4], BLUE);
-    }
-    display.drawLine(p2x[3], p2y[3], p2x[0], p2y[0], MAGENTA);
-    display.drawLine(p2x[7], p2y[7], p2x[4], p2y[4], GREEN);
-    display.drawLine(p2x[3], p2y[3], p2x[7], p2y[7], YELLOW);
-    //delay(20);
-    for (int i = 0; i < 3; i++) {
-      display.drawLine(p2x[i], p2y[i], p2x[i + 1], p2y[i + 1], BLACK);
-      display.drawLine(p2x[i + 4], p2y[i + 4], p2x[i + 5], p2y[i + 5], BLACK);
-      display.drawLine(p2x[i], p2y[i], p2x[i + 4], p2y[i + 4], BLACK);
-    }
-    display.drawLine(p2x[3], p2y[3], p2x[0], p2y[0], BLACK);
-    display.drawLine(p2x[7], p2y[7], p2x[4], p2y[4], BLACK);
-    display.drawLine(p2x[3], p2y[3], p2x[7], p2y[7], BLACK);
-  }
-}
 
 
 
@@ -717,13 +462,7 @@ void setup() {
   oldbridgetemp = 20;
   oldbridgehum = 10;
   Serial.begin(115200);
-  display.begin();
-  display.setTextWrap(false);
-  display.clearScreen();
-  display.setTextColor(YELLOW);
-  display.setTextScale(1);
-  //display.setCursor(0,0);
-  display.print("Please wait, connecting to wifi...");
+  
 
   WiFi.mode(WIFI_STA);
   WiFi.setPhyMode(WIFI_PHY_MODE_11B);
@@ -731,7 +470,7 @@ void setup() {
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    display.print(".");
+
   }
 
   delay(500);
@@ -753,14 +492,7 @@ void setup() {
 
   printLocalTime();
   terminal.flush();
-  display.setTextColor(GREEN);
-  display.println("");
-  display.print("Connected to ");
-  display.println(ssid);
-  display.print("IP address: ");
-  display.println(WiFi.localIP());
-  displayLocalTime();
-
+ 
 
   bme.begin(0x76);
   bme.setSampling(Adafruit_BME280::MODE_FORCED,
@@ -799,11 +531,7 @@ void setup() {
   gasAvg.push(gasRead);
   if (tempAvgHolder2 > 0) { tempAvg.push(tempAvgHolder2); }
   if (humAvgHolder2 > 0) { humAvg.push(humAvgHolder2); }
-  display.clearScreen();
-  doCube();
-  display.clearScreen();
-        display.setTextScale(2);
-        startDisplay();
+  
 }
 
 void loop() {
@@ -897,30 +625,14 @@ void loop() {
     //humBME = bme.readHumidity();
     if ((tempAvgHolder2 > 0) && (humAvgHolder2 > 0)) {
       abshumBME = (6.112 * pow(2.71828, ((17.67 * tempAvgHolder2) / (tempAvgHolder2 + 243.5))) * humAvgHolder2 * 2.1674) / (273.15 + tempAvgHolder2);
-      doDisplay();
+      
     }
     millisTFT = millis();
   }
 
   if (millis() - millisAvg >= 1000)  //if it's been 1 second
   {
-      /*display.setTextScale(2);
-      if (hours > 9) {display.setCursor(71, 0);} else {display.setCursor(61, 0);}
-      display.setTextColor(BLACK);
-      if (secs < 10) { display.print("0"); }
-      display.print(secs);
 
-
-      struct tm timeinfo;
-      getLocalTime(&timeinfo);
-      secs = timeinfo.tm_sec;
-
-      display.setCursor(0, 0);
-      display.setTextColor(WHITE);
-      //if (hours > 9) {display.print("      ");} else {display.print("     ");}
-      if (hours > 9) {display.setCursor(71, 0);} else {display.setCursor(61, 0);}
-      if (secs < 10) { display.print("0"); }
-      display.print(secs);*/
 
     millisAvg = millis();
     bme.takeForcedMeasurement();
