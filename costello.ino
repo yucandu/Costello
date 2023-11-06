@@ -489,7 +489,7 @@ void doDisplay() {
   pmB2 *= (255.0 / 55.0);
   if (pmB2 > 255) { pmB2 = 255; }
 
-  display.setTextSize(2);
+  display.setTextScale(2);
   display.setCursor(0, 0);
   display.setTextColor(BLACK);
   display.print(hours);
@@ -548,7 +548,7 @@ void doDisplay() {
   if (hours == 12) {isPM = true;}
   if (hours == 0) {hours = 12;}
   
-  display.setTextSize(2);
+  display.setTextScale(2);
   display.setCursor(0, 0);
   display.setTextColor(WHITE);
   display.print(hours);
@@ -620,7 +620,7 @@ void startDisplay() {
   display.drawFastHLine(0, 17, 118, WHITE);
     display.fillRect(0, 117, 128, 16, BLACK);
   display.setCursor(0, 117);
-  display.setTextSize(1);
+  display.setTextScale(1);
   display.setTextColor(YELLOW);
   display.print("PM2.5 in / PM2.5 out");
 }
@@ -721,7 +721,7 @@ void setup() {
   display.setTextWrap(false);
   display.clearScreen();
   display.setTextColor(YELLOW);
-  display.setTextSize(1);
+  display.setTextScale(1);
   //display.setCursor(0,0);
   display.print("Please wait, connecting to wifi...");
 
@@ -802,7 +802,7 @@ void setup() {
   display.clearScreen();
   doCube();
   display.clearScreen();
-        display.setTextSize(2);
+        display.setTextScale(2);
         startDisplay();
 }
 
@@ -904,7 +904,7 @@ void loop() {
 
   if (millis() - millisAvg >= 1000)  //if it's been 1 second
   {
-      /*display.setTextSize(2);
+      /*display.setTextScale(2);
       if (hours > 9) {display.setCursor(71, 0);} else {display.setCursor(61, 0);}
       display.setTextColor(BLACK);
       if (secs < 10) { display.print("0"); }
