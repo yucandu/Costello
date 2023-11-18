@@ -4,10 +4,7 @@
 #include <Adafruit_I2CDevice.h>
 #include <Adafruit_I2CRegister.h>
 #include <Adafruit_SPIDevice.h>
-#include <Adafruit_BME280.h>
-#include <Adafruit_Sensor.h>
-
-
+#include "DHT.h"
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
@@ -15,173 +12,59 @@
 #include <Wire.h>
 #include "time.h"
 #include <Average.h>
-#include <SPI.h>
 #include <Adafruit_ADS1X15.h>
+#include <Wire.h>               // Only needed for Arduino 1.6.5 and earlier
+#include "SH1106Wire.h"   // legacy: #include "SH1106.h"
 Adafruit_ADS1115 ads;
 
+ SH1106Wire display(0x3c, SDA, SCL); 
 
+#define RELAY_PIN 14 //D5
+#define DHT_PIN 2 //D4
+DHT dht (DHT_PIN, DHT22);
+const float a = 0.148571;
+const float c = 9.68571; //line of best fit for relationship between outside air temp and set abs humidity
 
-
-
-
-
-bool isPM = false;
-
+float hysteresis = 0.7;  //g/m3
+float sethum = 5.0;  //g/m3
 
 #define VREF 4.096         // analog reference voltage(Volt) of the ADC
-#define SCOUNT 30          // sum of sample point
-int analogBuffer[SCOUNT];  // store the analog value in the array, read from ADC
-int analogBufferTemp[SCOUNT];
-int analogBufferIndex = 0;
-int copyIndex = 0;
-
-int dd;  // Variables to hold data as integers
-int mo;
-int y;
-int h;
-int mi;
-int s;
 
 
-float averageVoltage = 0;
-float tdsValue = 0;
-float uncompensatedTdsValue = 0;
-float tdsValueOld = 0;
-bool firstTDS = true;
-float grains = 0;
+
+bool relaystate = false;
+
+
 float correctedGas;
 float aaH = 0.0000669005032586238;
 float baH = -0.0159747107540879;
 float abH = -0.00748672213648967;
-float bbH = 1.78146466558454;
+float bbH = 1.78146466558454; //MQ5 gas sensor temp/hum compensation factors
 
-#define BLACK 0x0000
-#define BLUE 0x001F
-#define LIGHTRED 0xFDB0
-#define LIGHTBLUE 0x869F
-#define RED 0xF800
-#define GREEN 0x07E0
-#define CYAN 0x07FF
-#define MAGENTA 0xFC3B
-#define YELLOW 0xFFE0
-#define WHITE 0xFFFF
-#define GREY 0xC618
-#define ORANGE 0xFE2F
-
-uint16_t TEXTCOLOR = YELLOW;
-
-
-
-
-
-#define __CS 2
-#define __DC 16
-#define __A0 0
-#define TFT_CS 2
-#define TFT_DC 16
-#define TFT_RST 0
-
-
-
-
-float correctionFactor(float temp, float hum) {
+float correctionFactor(float temp, float hum) { //MQ5 gas sensor temp/hum compensation function
   return (aaH * hum * temp) + (baH * temp) + (abH * hum) + bbH;
 }
 
-int getMedianNum(int bArray[], int iFilterLen) {
-  int bTab[iFilterLen];
-  for (byte i = 0; i < iFilterLen; i++)
-    bTab[i] = bArray[i];
-  int i, j, bTemp;
-  for (j = 0; j < iFilterLen - 1; j++) {
-    for (i = 0; i < iFilterLen - j - 1; i++) {
-      if (bTab[i] > bTab[i + 1]) {
-        bTemp = bTab[i];
-        bTab[i] = bTab[i + 1];
-        bTab[i + 1] = bTemp;
-      }
-    }
-  }
-  if ((iFilterLen & 1) > 0) {
-    bTemp = bTab[(iFilterLen - 1) / 2];
-  } else {
-    bTemp = (bTab[iFilterLen / 2] + bTab[iFilterLen / 2 - 1]) / 2;
-  }
-  return bTemp;
-}
-
-
-Average<float> gasAvg(20);
-Average<float> ppmAvg(20);
-Average<float> ppmAvg2(20);
-Average<float> a2Avg(20);
-Average<float> tempAvg(20);
-Average<float> humAvg(20);
-float tempAvgHolder, humAvgHolder, absHumAvgHolder, tempAvgHolder2, humAvgHolder2;
-
-
-
-
-
-
-// GPIO where the DS18B20 is connected to
-const int oneWireBus = 12;
-#define DS18B20_PIN 12
-int c_temp;
-char c_buffer[9], f_buffer[9];
-
-int gasRead;
-
-
-
+Average<float> gasAvg(6);
+int gasRead, ledValue;
 
 const char* ntpServer = "pool.ntp.org";
-const long gmtOffset_sec = -14400;  //Replace with your GMT offset (seconds)
+const long gmtOffset_sec = -18000;  //Replace with your GMT offset (seconds)
 const int daylightOffset_sec = 0;   //Replace with your daylight offset (seconds)
-
-
-
-
 
 float adc0, adc1, adc2, adc3;
 float volts0, volts1, volts2, volts3;
 
-int measureDelay = 500;
-int Ra = 25;
-int R1 = 1000 + Ra;
-int ECPin = A0;
-int ECGround = 16;
-int ECPower = 10;
-float PPMconversion = 0.5;
-float TemperatureCoef = 0.0187;
-float K = 2;
-float EC = 0;
-float EC2 = 0;
-float EC25 = 0;
-float EC252 = 0;
-int ppm = 0;
-int ppm2 = 0;
-float raw = 0;
-float raw2 = 0;
-float Vin = 3.3;
-float Vdrop = 0;
-float Vdrop2 = 0;
-float Rc = 0;
-float Rc2 = 0;
-float buffer = 0;
 
 const char* ssid = "mikesnet";
 const char* password = "springchicken";
 
 
-#define SEALEVELPRESSURE_HPA (1013.25)
-#define tempoffset -1.8F
 
 char auth[] = "pO--Yj8ksH2fjJLMW6yW9trkHBhd9-wc";  //BLYNK
 
 AsyncWebServer server(80);
-Adafruit_BME280 bme;  // I2C
-float abshumBME, tempBME, presBME, humBME;
+float abshum, tempDHT, humDHT;
 float tempprobe = 20;
 unsigned long millisBlynk = 0;
 unsigned long millisTFT = 0;
@@ -192,20 +75,11 @@ int firstvalue = 1;
 
 WidgetTerminal terminal(V10);
 
-float pm25in, pm25out, oldpm25in, oldpm25out, bridgetemp, bridgehum, oldbridgetemp, oldbridgehum;
+float bridgetemp;
 
-BLYNK_WRITE(V71) {
-  pm25in = param.asFloat();
-}
-BLYNK_WRITE(V72) {
-  pm25out = param.asFloat();
-}
 
 BLYNK_WRITE(V73) {
   bridgetemp = param.asFloat();
-}
-BLYNK_WRITE(V74) {
-  bridgehum = param.asFloat();
 }
 
 BLYNK_WRITE(V10) {
@@ -213,8 +87,7 @@ BLYNK_WRITE(V10) {
     terminal.println("==List of available commands:==");
     terminal.println("wifi");
     terminal.println("readgas");
-    terminal.println("readtds");
-    terminal.println("pushboth");
+    terminal.println("temps");
     terminal.println("==End of list.==");
   }
   if (String("wifi") == param.asStr()) {
@@ -227,29 +100,21 @@ BLYNK_WRITE(V10) {
     terminal.println(WiFi.RSSI());
   }
 
-
   if (String("readgas") == param.asStr()) {
     printtemp();
   }
-  if (String("readtds") == param.asStr()) {
-    printtemp2();
-  }
-  if (String("pushboth") == param.asStr()) {
-    printtemp3();
+  if (String("temps") == param.asStr()) {
+    humDHT = dht.readHumidity();
+    tempDHT = dht.readTemperature();
+    abshum = (6.112 * pow(2.71828, ((17.67 * tempDHT) / (tempDHT + 243.5))) * humDHT * 2.1674) / (273.15 + tempDHT);
+    terminal.print("> Temp: ");
+    terminal.print(tempDHT);
+    terminal.print("*C, Hum: ");
+    terminal.print(humDHT);
+    terminal.print("%, abshum: ");
+    terminal.println(abshum);
   }
 
-  if (String("grey") == param.asStr()) {
-    TEXTCOLOR = GREY;
-  }
-  if (String("lightred") == param.asStr()) {
-    TEXTCOLOR = LIGHTRED;
-  }
-  if (String("lightblue") == param.asStr()) {
-    TEXTCOLOR = LIGHTBLUE;
-  }
-  if (String("yellow") == param.asStr()) {
-    TEXTCOLOR = YELLOW;
-  }
   terminal.flush();
 }
 
@@ -267,21 +132,9 @@ void printLocalTime() {
   terminal.flush();
 }
 
-void displayLocalTime() {
-  time_t rawtime;
-  struct tm* timeinfo;
-  time(&rawtime);
-  timeinfo = localtime(&rawtime);
-  //display.print(asctime(timeinfo));
-}
-
 
 void printtemp() {
-
-  ads.setGain(GAIN_SIXTEEN);
   adc3 = ads.readADC_SingleEnded(3);
-  adc3 = ads.readADC_SingleEnded(3);
-  ads.setGain(GAIN_TWO);
   volts3 = ads.computeVolts(adc3);
   terminal.println("----------GAS---------");
   terminal.println("AIN3: ");
@@ -292,182 +145,28 @@ void printtemp() {
   terminal.flush();
 }
 
-void printtemp2() {
-  ads.setGain(GAIN_TWO);
-  adc1 = ads.readADC_SingleEnded(1);
-  adc1 = ads.readADC_SingleEnded(1);
-  ads.setGain(GAIN_TWO);
-  volts1 = ads.computeVolts(adc1);
-  terminal.println("----------TDS---------");
-  terminal.println("AIN1: ");
-  terminal.print(adc1);
-  terminal.print("  ");
-  terminal.print(volts1);
-  terminal.println("V");
-  terminal.print("Code volts: ");
-  terminal.println(averageVoltage);
-  terminal.flush();
-}
 
-
-
-
-bool ds18b20_start() {
-  bool ret = 0;
-  digitalWrite(DS18B20_PIN, LOW);  // send reset pulse to the DS18B20 sensor
-  pinMode(DS18B20_PIN, OUTPUT);
-  delayMicroseconds(500);  // wait 500 us
-  pinMode(DS18B20_PIN, INPUT);
-  delayMicroseconds(100);  // wait to read the DS18B20 sensor response
-  if (!digitalRead(DS18B20_PIN)) {
-    ret = 1;                 // DS18B20 sensor is present
-    delayMicroseconds(400);  // wait 400 us
-  }
-  return (ret);
-}
-
-void ds18b20_write_bit(bool value) {
-  digitalWrite(DS18B20_PIN, LOW);
-  pinMode(DS18B20_PIN, OUTPUT);
-  delayMicroseconds(2);
-  digitalWrite(DS18B20_PIN, value);
-  delayMicroseconds(80);
-  pinMode(DS18B20_PIN, INPUT);
-  delayMicroseconds(2);
-}
-
-void ds18b20_write_byte(byte value) {
-  byte i;
-  for (i = 0; i < 8; i++)
-    ds18b20_write_bit(bitRead(value, i));
-}
-
-bool ds18b20_read_bit(void) {
-  bool value;
-  digitalWrite(DS18B20_PIN, LOW);
-  pinMode(DS18B20_PIN, OUTPUT);
-  delayMicroseconds(2);
-  pinMode(DS18B20_PIN, INPUT);
-  delayMicroseconds(5);
-  value = digitalRead(DS18B20_PIN);
-  delayMicroseconds(100);
-  return value;
-}
-
-uint16_t ds18b20_read_byte(void) {
-  byte i;
-  uint16_t value = 0;
-  for (i = 0; i < 12; i++)
-    bitWrite(value, i, ds18b20_read_bit());
-  //terminal.print(value);
-  return value;
-}
-
-bool ds18b20_read(int* raw_temp_value) {
-  if (!ds18b20_start())  // send start pulse
-    return (0);
-  ds18b20_write_byte(0xCC);  // send skip ROM command
-  ds18b20_write_byte(0x44);  // send start conversion command
-  while (ds18b20_read_byte() == 0)
-    ;                        // wait for conversion complete
-  if (!ds18b20_start())      // send start pulse
-    return (0);              // return 0 if error
-  ds18b20_write_byte(0xCC);  // send skip ROM command
-  ds18b20_write_byte(0xBE);  // send read command
-
-  // read temperature LSB byte and store it on raw_temp_value LSB byte
-  *raw_temp_value = ds18b20_read_byte();
-  // read temperature MSB byte and store it on raw_temp_value MSB byte
-  *raw_temp_value |= (unsigned int)(ds18b20_read_byte() << 8);
-
-  return (1);  // OK --> return 1
-}
-
-void printtemp3() {
-  Blynk.virtualWrite(V9, gasAvg.mean());
-  Blynk.virtualWrite(V11, ppmAvg.mean());
-  Blynk.virtualWrite(V12, a2Avg.mean());
-  terminal.println("Gas: ");
-  terminal.print(gasAvg.mean());
-  terminal.print(", PPM from avg: ");
-  terminal.print(ppmAvg.mean());
-  terminal.print(", PPM from sensor: ");
-  terminal.print(tdsValue);
-  terminal.print(", A2 from avg: ");
-  terminal.print(a2Avg.mean());
-  terminal.print(", A2 from sensor: ");
-  terminal.print(ads.readADC_SingleEnded(1));
-  terminal.println("");
-}
-
-float readDStemp(void) {
-  if (ds18b20_read(&c_temp)) {
-    // read from DS18B20 sensor OK
-
-    // calculate temperature in °F (actual temperature in °F = f_temp/160)
-    // °F = °C x 9/5 + 32
-    int32_t f_temp = (int32_t)c_temp * 90 / 5 + 5120;  // 5120 = 32 x 16 x 10
-
-    if (c_temp < 0) {        // if temperature < 0 °C
-      c_temp = abs(c_temp);  // absolute value
-      sprintf(c_buffer, "-%02u.%04u", c_temp / 16, (c_temp & 0x0F) * 625);
-    } else {
-      if (c_temp / 16 >= 100)  // if temperature >= 100.0 °C
-        sprintf(c_buffer, "%03u.%04u", c_temp / 16, (c_temp & 0x0F) * 625);
-      else
-        sprintf(c_buffer, " %02u.%04u", c_temp / 16, (c_temp & 0x0F) * 625);
-    }
-
-    if (f_temp < 0) {        // if temperature < 0 °F
-      f_temp = abs(f_temp);  // absolute value
-      sprintf(f_buffer, "-%02u.%04u", (uint16_t)f_temp / 160, (uint16_t)(f_temp * 1000 / 16 % 10000));
-    } else {
-      if (f_temp / 160 >= 100)  // if temperature >= 100.0 °F
-        sprintf(f_buffer, "%03u.%04u", (uint16_t)f_temp / 160, (uint16_t)(f_temp * 1000 / 16 % 10000));
-      else
-        sprintf(f_buffer, " %02u.%04u", (uint16_t)f_temp / 160, (uint16_t)(f_temp * 1000 / 16 % 10000));
-    }
-    return atof(c_buffer);
-  } else return -69.69;
-}
-
-
-float oldtempAvgHolder2, oldhumAvgHolder2, oldabshumBME, oldtempprobe;
-int oldtdsValue, oldcorrectedGas;
-
-float pmR, pmG, pmB;
-float pmR2, pmG2, pmB2;
-
-uint16_t RGBto565(uint8_t r, uint8_t g, uint8_t b) {
-  return ((r / 8) << 11) | ((g / 4) << 5) | (b / 8);
-}
 
 char time_value[20];
 int hours, mins, secs;
 
 
-
-
-
-
-
-
-
-
-
-
 void setup() {
-  bridgetemp = 20;
-  bridgehum = 10;
-  oldbridgetemp = 20;
-  oldbridgehum = 10;
+  digitalWrite(RELAY_PIN, LOW);
+  pinMode(RELAY_PIN, OUTPUT);
+  pinMode(DHT_PIN, INPUT_PULLUP);
+   dht.begin ();
+  bridgetemp = -20;
   Serial.begin(115200);
-  
-
   WiFi.mode(WIFI_STA);
   WiFi.setPhyMode(WIFI_PHY_MODE_11B);
   WiFi.begin("mikesnet", "springchicken");
-
+  delay(10);
+  display.init();
+  display.setFont(ArialMT_Plain_10);
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  display.flipScreenVertically();
+  display.drawString(0,0, "Connecting...");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
 
@@ -483,24 +182,13 @@ void setup() {
   Serial.println(WiFi.localIP());
   Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
   Blynk.connect();
-  terminal.println("**********COSTELLOOOO v1.0***********");
-
+  terminal.println("***COSTELLO THE HUMIDISTAT v2.1***");
   terminal.print("Connected to ");
   terminal.println(ssid);
   terminal.print("IP address: ");
   terminal.println(WiFi.localIP());
-
   printLocalTime();
   terminal.flush();
- 
-
-  bme.begin(0x76);
-  bme.setSampling(Adafruit_BME280::MODE_FORCED,
-                  Adafruit_BME280::SAMPLING_X1,  // temperature
-                  Adafruit_BME280::SAMPLING_X1,  // pressure
-                  Adafruit_BME280::SAMPLING_X1,  // humidity
-                  Adafruit_BME280::FILTER_OFF);
-
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
     request->send(200, "text/plain", "I am Costello");
@@ -510,7 +198,6 @@ void setup() {
   server.begin();
   terminal.println("HTTP server started");
   terminal.flush();
-  ads.setGain(GAIN_TWO);
   if (!ads.begin()) {
     terminal.println("Failed to initialize ADS.");
     while (1)
@@ -520,130 +207,91 @@ void setup() {
   }
   terminal.println("Startup complete.");
   terminal.flush();
-  delay(3000);
-  bme.takeForcedMeasurement();
-  tempAvgHolder2 = (bme.readTemperature() + tempoffset);
-  humAvgHolder2 = bme.readHumidity();
   ads.setGain(GAIN_SIXTEEN);
   gasRead = ads.readADC_SingleEnded(3);
-  gasRead = ads.readADC_SingleEnded(3);
-  ads.setGain(GAIN_TWO);
   gasAvg.push(gasRead);
-  if (tempAvgHolder2 > 0) { tempAvg.push(tempAvgHolder2); }
-  if (humAvgHolder2 > 0) { humAvg.push(humAvgHolder2); }
-  
+    humDHT = dht.readHumidity();
+    tempDHT = dht.readTemperature();
+    abshum = (6.112 * pow(2.71828, ((17.67 * tempDHT) / (tempDHT + 243.5))) * humDHT * 2.1674) / (273.15 + tempDHT);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   Blynk.run();
+delay(100);
 
-  static unsigned long analogSampleTimepoint = millis();
 
-  if (millis() - analogSampleTimepoint > 40U) {  //every 40 milliseconds,read the analog value from the ADC
-    analogSampleTimepoint = millis();
-    analogBuffer[analogBufferIndex] = ads.readADC_SingleEnded(1);  //read the analog value and store into the buffer
-    analogBufferIndex++;
-    if (analogBufferIndex == SCOUNT) {
-      analogBufferIndex = 0;
-    }
-  }
 
-  static unsigned long printTimepoint = millis();
-  if (millis() - printTimepoint > 800U) {
-    printTimepoint = millis();
-    for (copyIndex = 0; copyIndex < SCOUNT; copyIndex++) {
-      analogBufferTemp[copyIndex] = analogBuffer[copyIndex];
-      float medianNum = getMedianNum(analogBufferTemp, SCOUNT);
-      a2Avg.push(medianNum);
-      // read the analog value more stable by the median filtering algorithm, and convert to voltage value
-      averageVoltage = getMedianNum(analogBufferTemp, SCOUNT) * (float)VREF / 65535.0;
 
-      //temperature compensation formula: fFinalResult(25^C) = fFinalResult(current)/(1.0+0.02*(fTP-25.0));
-      float compensationCoefficient = 1.0 + 0.019 * (tempprobe - 25.0);
-      float compensationCoefficient2 = 1.0 + 0.019 * (25 - 25.0);
-      //temperature compensation
-      float compensationVoltage = averageVoltage / compensationCoefficient;
-      float compensationVoltage2 = averageVoltage / compensationCoefficient2;
-
-      //convert voltage value to tds value
-      tdsValue = (133.42 * compensationVoltage * compensationVoltage * compensationVoltage - 255.86 * compensationVoltage * compensationVoltage + 857.39 * compensationVoltage) * 0.5;
-      uncompensatedTdsValue = (133.42 * compensationVoltage2 * compensationVoltage2 * compensationVoltage2 - 255.86 * compensationVoltage2 * compensationVoltage2 + 857.39 * compensationVoltage2) * 0.5;
-
-      //Serial.print("voltage:");
-      //Serial.print(averageVoltage,2);
-      //Serial.print("V   ");
-      if (!firstTDS) {
-        if (tdsValue > 100) {
-          ppmAvg.push(tdsValue);
-          ppmAvg2.push(uncompensatedTdsValue);
-        }
-      } else {
-        ppmAvg.push(tdsValue);
-        ppmAvg2.push(uncompensatedTdsValue);
-      }
-      firstTDS = false;
-    }
-  }
 
 
   if (millis() - millisBlynk >= 30000)  //if it's been 30 seconds
   {
-    bme.takeForcedMeasurement();
-
-    presBME = (bme.readPressure() / 100.0F);
-    humAvgHolder = humAvg.mean();
-    tempAvgHolder = tempAvg.mean();
-    absHumAvgHolder = (6.112 * pow(2.71828, ((17.67 * tempAvgHolder) / (tempAvgHolder + 243.5))) * humAvgHolder * 2.1674) / (273.15 + tempAvgHolder);
+    if (hours > 11) {display.invertDisplay();} else {display.normalDisplay();}
+    humDHT = dht.readHumidity();
+    tempDHT = dht.readTemperature();
+    abshum = (6.112 * pow(2.71828, ((17.67 * tempDHT) / (tempDHT + 243.5))) * humDHT * 2.1674) / (273.15 + tempDHT);
     millisBlynk = millis();
+      if (tempDHT > 0) {Blynk.virtualWrite(V2, tempDHT);}
+    if (humDHT > 0) {Blynk.virtualWrite(V3, humDHT);}
+    Blynk.virtualWrite(V2, tempDHT);
+    Blynk.virtualWrite(V3, humDHT);
+    Blynk.virtualWrite(V4, abshum);
 
-    Blynk.virtualWrite(V1, presBME);
-    Blynk.virtualWrite(V2, tempAvgHolder);
-    Blynk.virtualWrite(V3, humAvgHolder);
-    Blynk.virtualWrite(V4, absHumAvgHolder);
-    Blynk.virtualWrite(V5, tempprobe);
-    //  Blynk.virtualWrite(V6, raw);
-    //Blynk.virtualWrite(V7, ppm);
-
-
-    //float ppmAvgHolder = ppmAvg.mean();
     Blynk.virtualWrite(V9, gasAvg.mean());
-    Blynk.virtualWrite(V11, ppmAvg.mean());
-    Blynk.virtualWrite(V8, ppmAvg2.mean());
-    Blynk.virtualWrite(V12, a2Avg.mean());
+
     float Rs = (ads.computeVolts(gasAvg.mean()) * 47000) / (5.0 - ads.computeVolts(gasAvg.mean()));
-    correctedGas = (Rs / correctionFactor(tempAvgHolder, humAvgHolder));
+    correctedGas = (Rs / correctionFactor(tempDHT, humDHT));
     Blynk.virtualWrite(V13, correctedGas);
+    Blynk.virtualWrite(V14, relaystate);
+    Blynk.virtualWrite(V15, ledValue);
+    Blynk.virtualWrite(V16, sethum);
+    Blynk.virtualWrite(V17, bridgetemp);
   }
 
-  if (millis() - millisTFT >= 3000)  //if it's been 3 seconds
+
+
+  if (millis() - millisAvg >= 5000)  //if it's been 5 second
   {
-    //bme.takeForcedMeasurement();
-    tempprobe = readDStemp();
-    //tempBME = (bme.readTemperature() + tempoffset);
-    //presBME = (bme.readPressure() / 100.0F);
-    //humBME = bme.readHumidity();
-    if ((tempAvgHolder2 > 0) && (humAvgHolder2 > 0)) {
-      abshumBME = (6.112 * pow(2.71828, ((17.67 * tempAvgHolder2) / (tempAvgHolder2 + 243.5))) * humAvgHolder2 * 2.1674) / (273.15 + tempAvgHolder2);
-      
-    }
-    millisTFT = millis();
-  }
-
-  if (millis() - millisAvg >= 1000)  //if it's been 1 second
-  {
-
-
+    struct tm timeinfo;
+    getLocalTime(&timeinfo);
+    hours = timeinfo.tm_hour;
+    mins = timeinfo.tm_min;
+    secs = timeinfo.tm_sec;
     millisAvg = millis();
-    bme.takeForcedMeasurement();
-    tempAvgHolder2 = (bme.readTemperature() + tempoffset);
-    humAvgHolder2 = bme.readHumidity();
     ads.setGain(GAIN_SIXTEEN);
     gasRead = ads.readADC_SingleEnded(3);
-    gasRead = ads.readADC_SingleEnded(3);
-    ads.setGain(GAIN_TWO);
     gasAvg.push(gasRead);
-    if (tempAvgHolder2 > 0) { tempAvg.push(tempAvgHolder2); }
-    if (humAvgHolder2 > 0) { humAvg.push(humAvgHolder2); }
+    String tempstring = "OUT TEMP: " + String(bridgetemp) + "°C";
+    String humstring = "IN HUM: " + String(abshum) + "g";
+    String sethumstring = "SET HUM: " + String(sethum) + "g";
+    String gasstring = "GAS: " + String(correctedGas);
+    display.clear();
+    display.setTextAlignment(TEXT_ALIGN_LEFT);
+    display.drawString(0,0, tempstring);
+    display.drawString(0,12, humstring);
+    display.drawString(0,24, sethumstring);
+    if (relaystate) {String relaystring = "RELAY: [ON]";
+      display.drawString(0,36, relaystring);} else {String relaystring = "RELAY: [off]";
+      display.drawString(0,36, relaystring);}
+    display.display(0, 48, gasstring);
+    display.setTextAlignment(TEXT_ALIGN_RIGHT);
+    String tempstring = String(bridgetemp) + "°C";
+    String humstring = String(abshum) + "g";
+    String sethumstring = String(sethum) + "g";
+    String gasstring = String(correctedGas);
+
+    sethum = (a * bridgetemp) + c;
+    if ((abshum < sethum) && (abshum > 0)) {
+      if (!relaystate) {digitalWrite(RELAY_PIN, HIGH);}
+      relaystate = true;
+      ledValue = 255;
+    }
+    if (abshum > (sethum + hysteresis)) {
+      if (relaystate) {digitalWrite(RELAY_PIN, LOW);}
+      relaystate = false;
+      ledValue = 0;
+    }
+
   }
 }
