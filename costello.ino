@@ -22,8 +22,12 @@ Adafruit_ADS1115 ads;
 #define RELAY_PIN 14 //D5
 #define DHT_PIN 2 //D4
 DHT dht (DHT_PIN, DHT22);
-const float a = 0.148571;
-const float c = 9.68571; //line of best fit for relationship between outside air temp and set abs humidity
+//const float a = 0.143024; //0.148571;
+//const float c = 10.4; //9.68571;
+const float a = -0.00361127; 
+const float b = 0.156529;
+const float c = 10.415; //line of best fit for relationship between outside air temp and set abs humidity
+
 
 float hysteresis = 0.7;  //g/m3
 float sethum = 5.0;  //g/m3
@@ -166,7 +170,10 @@ void setup() {
   display.setFont(ArialMT_Plain_10);
   display.setTextAlignment(TEXT_ALIGN_LEFT);
   display.flipScreenVertically();
+  display.clear();
+  display.setBrightness(100);
   display.drawString(0,0, "Connecting...");
+  display.display();
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
 
@@ -218,16 +225,10 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   Blynk.run();
-delay(100);
-
-
-
-
-
 
   if (millis() - millisBlynk >= 30000)  //if it's been 30 seconds
   {
-    if (hours > 11) {display.invertDisplay();} else {display.normalDisplay();}
+    //if (hours > 11) {display.invertDisplay();} else {display.normalDisplay();}
     humDHT = dht.readHumidity();
     tempDHT = dht.readTemperature();
     abshum = (6.112 * pow(2.71828, ((17.67 * tempDHT) / (tempDHT + 243.5))) * humDHT * 2.1674) / (273.15 + tempDHT);
@@ -259,29 +260,29 @@ delay(100);
     mins = timeinfo.tm_min;
     secs = timeinfo.tm_sec;
     millisAvg = millis();
-    ads.setGain(GAIN_SIXTEEN);
-    gasRead = ads.readADC_SingleEnded(3);
-    gasAvg.push(gasRead);
-    String tempstring = "OUT TEMP: " + String(bridgetemp) + "°C";
-    String humstring = "IN HUM: " + String(abshum) + "g";
-    String sethumstring = "SET HUM: " + String(sethum) + "g";
-    String gasstring = "GAS: " + String(correctedGas);
+    String tempstring = "OUT TEMP: ";
+    String humstring = "IN HUM: "; 
+    String sethumstring = "SET HUM: ";
+    String gasstring = "GAS: "; 
+    String relaystring = "RELAY:";
     display.clear();
     display.setTextAlignment(TEXT_ALIGN_LEFT);
     display.drawString(0,0, tempstring);
     display.drawString(0,12, humstring);
     display.drawString(0,24, sethumstring);
-    if (relaystate) {String relaystring = "RELAY: [ON]";
-      display.drawString(0,36, relaystring);} else {String relaystring = "RELAY: [off]";
-      display.drawString(0,36, relaystring);}
-    display.display(0, 48, gasstring);
+    display.drawString(0,36, relaystring);
+    display.drawString(0,48, gasstring);
     display.setTextAlignment(TEXT_ALIGN_RIGHT);
-    String tempstring = String(bridgetemp) + "°C";
-    String humstring = String(abshum) + "g";
-    String sethumstring = String(sethum) + "g";
-    String gasstring = String(correctedGas);
-
-    sethum = (a * bridgetemp) + c;
+     tempstring = String(bridgetemp) + "°C";
+     humstring = String(abshum) + "g/m³";
+     sethumstring = String(sethum) + "g/m³";
+     gasstring = String(correctedGas);
+    display.drawString(128,0, tempstring);
+    display.drawString(128,12, humstring);
+    display.drawString(128,24, sethumstring);
+    if (relaystate) {String relaystring = "[ON]"; display.drawString(128,36, relaystring);} else {String relaystring = "[off]"; display.drawString(128,36, relaystring);}
+    display.drawString(128,48, gasstring);
+    sethum = ((a*bridgetemp)*(a*bridgetemp)) + (b * bridgetemp) + c;
     if ((abshum < sethum) && (abshum > 0)) {
       if (!relaystate) {digitalWrite(RELAY_PIN, HIGH);}
       relaystate = true;
@@ -292,6 +293,9 @@ delay(100);
       relaystate = false;
       ledValue = 0;
     }
-
+    ads.setGain(GAIN_SIXTEEN);
+    gasRead = ads.readADC_SingleEnded(3);
+    gasAvg.push(gasRead);
   }
+display.display();
 }
