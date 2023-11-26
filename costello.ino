@@ -12,10 +12,8 @@
 #include <Wire.h>
 #include "time.h"
 #include <Average.h>
-#include <Adafruit_ADS1X15.h>
 #include <Wire.h>               // Only needed for Arduino 1.6.5 and earlier
 #include "SH1106Wire.h"   // legacy: #include "SH1106.h"
-Adafruit_ADS1115 ads;
 
  SH1106Wire display(0x3c, SDA, SCL); 
 
@@ -39,25 +37,14 @@ float sethum = 5.0;  //g/m3
 bool relaystate = false;
 
 
-float correctedGas;
-float aaH = 0.0000669005032586238;
-float baH = -0.0159747107540879;
-float abH = -0.00748672213648967;
-float bbH = 1.78146466558454; //MQ5 gas sensor temp/hum compensation factors
 
-float correctionFactor(float temp, float hum) { //MQ5 gas sensor temp/hum compensation function
-  return (aaH * hum * temp) + (baH * temp) + (abH * hum) + bbH;
-}
 
-Average<float> gasAvg(6);
-int gasRead, ledValue;
+
+int ledValue;
 
 const char* ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = -18000;  //Replace with your GMT offset (seconds)
 const int daylightOffset_sec = 0;   //Replace with your daylight offset (seconds)
-
-float adc0, adc1, adc2, adc3;
-float volts0, volts1, volts2, volts3;
 
 
 const char* ssid = "mikesnet";
@@ -90,7 +77,6 @@ BLYNK_WRITE(V10) {
   if (String("help") == param.asStr()) {
     terminal.println("==List of available commands:==");
     terminal.println("wifi");
-    terminal.println("readgas");
     terminal.println("temps");
     terminal.println("==End of list.==");
   }
@@ -104,9 +90,7 @@ BLYNK_WRITE(V10) {
     terminal.println(WiFi.RSSI());
   }
 
-  if (String("readgas") == param.asStr()) {
-    printtemp();
-  }
+
   if (String("temps") == param.asStr()) {
     humDHT = dht.readHumidity();
     tempDHT = dht.readTemperature();
@@ -137,17 +121,7 @@ void printLocalTime() {
 }
 
 
-void printtemp() {
-  adc3 = ads.readADC_SingleEnded(3);
-  volts3 = ads.computeVolts(adc3);
-  terminal.println("----------GAS---------");
-  terminal.println("AIN3: ");
-  terminal.print(adc3);
-  terminal.print("  ");
-  terminal.print(volts3);
-  terminal.println("V");
-  terminal.flush();
-}
+
 
 
 
@@ -205,18 +179,8 @@ void setup() {
   server.begin();
   terminal.println("HTTP server started");
   terminal.flush();
-  if (!ads.begin()) {
-    terminal.println("Failed to initialize ADS.");
-    while (1)
-      ;
-  } else {
-    terminal.println("ADS initialized");
-  }
   terminal.println("Startup complete.");
   terminal.flush();
-  ads.setGain(GAIN_SIXTEEN);
-  gasRead = ads.readADC_SingleEnded(3);
-  gasAvg.push(gasRead);
     humDHT = dht.readHumidity();
     tempDHT = dht.readTemperature();
     abshum = (6.112 * pow(2.71828, ((17.67 * tempDHT) / (tempDHT + 243.5))) * humDHT * 2.1674) / (273.15 + tempDHT);
@@ -239,11 +203,7 @@ void loop() {
     Blynk.virtualWrite(V3, humDHT);
     Blynk.virtualWrite(V4, abshum);
 
-    Blynk.virtualWrite(V9, gasAvg.mean());
 
-    float Rs = (ads.computeVolts(gasAvg.mean()) * 47000) / (5.0 - ads.computeVolts(gasAvg.mean()));
-    correctedGas = (Rs / correctionFactor(tempDHT, humDHT));
-    Blynk.virtualWrite(V13, correctedGas);
     Blynk.virtualWrite(V14, relaystate);
     Blynk.virtualWrite(V15, ledValue);
     Blynk.virtualWrite(V16, sethum);
@@ -263,25 +223,25 @@ void loop() {
     String tempstring = "OUT TEMP: ";
     String humstring = "IN HUM: "; 
     String sethumstring = "SET HUM: ";
-    String gasstring = "GAS: "; 
     String relaystring = "RELAY:";
+    String intempstring = "IN TEMP: "; 
     display.clear();
     display.setTextAlignment(TEXT_ALIGN_LEFT);
     display.drawString(0,0, tempstring);
     display.drawString(0,12, humstring);
     display.drawString(0,24, sethumstring);
     display.drawString(0,36, relaystring);
-    display.drawString(0,48, gasstring);
+    display.drawString(0,48, intempstring);
     display.setTextAlignment(TEXT_ALIGN_RIGHT);
      tempstring = String(bridgetemp) + "°C";
      humstring = String(abshum) + "g/m³";
      sethumstring = String(sethum) + "g/m³";
-     gasstring = String(correctedGas);
+     intempstring = String(tempDHT) + "°C";
     display.drawString(128,0, tempstring);
     display.drawString(128,12, humstring);
     display.drawString(128,24, sethumstring);
     if (relaystate) {String relaystring = "[ON]"; display.drawString(128,36, relaystring);} else {String relaystring = "[off]"; display.drawString(128,36, relaystring);}
-    display.drawString(128,48, gasstring);
+    display.drawString(128,48, intempstring);
     sethum = ((a*bridgetemp)*(a*bridgetemp)) + (b * bridgetemp) + c;
     if ((abshum < sethum) && (abshum > 0)) {
       if (!relaystate) {digitalWrite(RELAY_PIN, HIGH);}
@@ -293,9 +253,6 @@ void loop() {
       relaystate = false;
       ledValue = 0;
     }
-    ads.setGain(GAIN_SIXTEEN);
-    gasRead = ads.readADC_SingleEnded(3);
-    gasAvg.push(gasRead);
   }
 display.display();
 }
