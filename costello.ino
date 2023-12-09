@@ -192,7 +192,7 @@ void loop() {
 
   if (millis() - millisBlynk >= 30000)  //if it's been 30 seconds
   {
-    //if (hours > 11) {display.invertDisplay();} else {display.normalDisplay();}
+    if (hours > 11) {display.invertDisplay();} else {display.normalDisplay();}
     humDHT = dht.readHumidity();
     tempDHT = dht.readTemperature();
     abshum = (6.112 * pow(2.71828, ((17.67 * tempDHT) / (tempDHT + 243.5))) * humDHT * 2.1674) / (273.15 + tempDHT);
