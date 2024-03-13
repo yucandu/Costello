@@ -16,6 +16,9 @@
 #include "SH1106Wire.h"   // legacy: #include "SH1106.h"
 #include <Adafruit_ADS1X15.h>
 #include "Adafruit_SHT4x.h"
+#include "Adafruit_VL53L0X.h"
+
+Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 
 Adafruit_SHT4x sht4 = Adafruit_SHT4x();
   sensors_event_t humidity, temp;
@@ -26,37 +29,7 @@ Adafruit_ADS1015 ads;
  SH1106Wire display(0x3c, SDA, SCL); 
 
  
-        /* 2- AC Current Measurement */
-        float mVperAmpValue = 31.25;                      // If using ACS712 current module : for 5A module key in 185, for 20A module key in 100, for 30A module key in 66
-                                                          // If using "Hall-Effect" Current Transformer, key in value using this formula: mVperAmp = maximum voltage range (in milli volt) / current rating of CT
-                                                          /* For example, a 20A Hall-Effect Current Transformer rated at 20A, 2.5V +/- 0.625V, mVperAmp will be 625 mV / 20A = 31.25mV/A */
-        float currentSampleRead_1  = 0;                     /* to read the value of a sample*/
-        unsigned long currentLastSample_1  = 0;                     /* to count time for each sample. Technically 1 milli second 1 sample is taken */
-        float currentSampleSum_1   = 0;                     /* accumulation of sample readings */
-        float currentSampleCount_1 = 0;                     /* to count number of sample. */
-        float currentMean_1 ;                               /* to calculate the average value from all samples*/ 
-        float RMSCurrentMean_1 =0 ;                         /* square roof of currentMean*/
-        float FinalRMSCurrent_1 ;                           /* the final RMS current reading*/
-        /*2.1 Offset AC Current */    
-        float currentOffset1_1 = 0;                   // to Offset deviation and accuracy. Offset any fake current when no current operates. 
-                                                          // Offset will automatically callibrate when SELECT Button on the LCD Display Shield is pressed.
-                                                          // If you do not have LCD Display Shield, look into serial monitor to add or minus the value manually and key in here.
-                                                          // 26 means add 26 to all analog value measured
-        float currentOffset2_1 = 0;                   // to offset value due to calculation error from squared and square root.
-
-        float currentSampleRead_2  = 0;                     /* to read the value of a sample*/
-        float currentLastSample_2  = 0;                     /* to count time for each sample. Technically 1 milli second 1 sample is taken */
-        float currentSampleSum_2   = 0;                     /* accumulation of sample readings */
-        float currentSampleCount_2 = 0;                     /* to count number of sample. */
-        float currentMean_2 ;                               /* to calculate the average value from all samples*/ 
-        float RMSCurrentMean_2 =0 ;                         /* square roof of currentMean*/
-        float FinalRMSCurrent_2 ;                           /* the final RMS current reading*/
-        /*2.1 Offset AC Current */    
-        float currentOffset1_2 = 0;                   // to Offset deviation and accuracy. Offset any fake current when no current operates. 
-                                                          // Offset will automatically callibrate when SELECT Button on the LCD Display Shield is pressed.
-                                                          // If you do not have LCD Display Shield, look into serial monitor to add or minus the value manually and key in here.
-                                                          // 26 means add 26 to all analog value measured
-        float currentOffset2_2 = 0;                   // to offset value due to calculation error from squared and square root.
+int adsmax;
 
 #define RELAY_PIN 14 //D5
 #define DHT_PIN 2 //D4
@@ -65,10 +38,10 @@ DHT dht (DHT_PIN, DHT22);
 //const float c = 10.4; //9.68571;
 const float a = -0.00361127; 
 const float b = 0.156529;
-const float c = 10.415; //line of best fit for relationship between outside air temp and set abs humidity
+const float c = 11; //line of best fit for relationship between outside air temp and set abs humidity
 
 
-float hysteresis = 0.7;  //g/m3
+float hysteresis = 0.6;  //g/m3
 float sethum = 5.0;  //g/m3
 
 #define VREF 4.096         // analog reference voltage(Volt) of the ADC
@@ -81,11 +54,11 @@ bool relaystate = false;
 
 
 
-int ledValue;
+int ledValue, ledValue2;
 
 const char* ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = -18000;  //Replace with your GMT offset (seconds)
-const int daylightOffset_sec = 0;   //Replace with your daylight offset (seconds)
+const int daylightOffset_sec = 3600;   //Replace with your daylight offset (seconds)
 
 
 const char* ssid = "mikesnet";
@@ -119,6 +92,7 @@ BLYNK_WRITE(V10) {
     terminal.println("==List of available commands:==");
     terminal.println("wifi");
     terminal.println("temps");
+    terminal.println("range");
     terminal.println("==End of list.==");
   }
   if (String("wifi") == param.asStr()) {
@@ -153,6 +127,18 @@ BLYNK_WRITE(V10) {
     terminal.println(ads.readADC_SingleEnded(0));
     
   }
+    if (String("range") == param.asStr()) {
+        VL53L0X_RangingMeasurementData_t measure;
+    
+      terminal.print("Reading a measurement... ");
+      lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
+
+      if (measure.RangeStatus != 4) {  // phase failures have incorrect data
+      terminal.print("Distance (mm): "); terminal.println(measure.RangeMilliMeter);
+      } else {
+      terminal.println(" out of range ");
+      }
+   }
 
   terminal.flush();
 }
@@ -242,7 +228,15 @@ void setup() {
   AsyncElegantOTA.begin(&server);  // Start ElegantOTA
   server.begin();
   terminal.println("HTTP server started");
-  terminal.flush();
+ // terminal.flush();
+
+    terminal.println("Adafruit VL53L0X test");
+  if (!lox.begin()) {
+    terminal.println("Failed to boot VL53L0X");
+  }
+  else {
+    terminal.println("Succeeded to boot VL53L0X");
+  }
   terminal.println("Startup complete.");
   terminal.flush();
     humDHT = dht.readHumidity();
@@ -271,28 +265,44 @@ void loop() {
     Blynk.virtualWrite(V2, tempDHT);
     Blynk.virtualWrite(V3, humDHT);
     Blynk.virtualWrite(V4, abshum);
-    int adsread = ads.readADC_SingleEnded(0);
+    
 
     Blynk.virtualWrite(V14, relaystate);
     Blynk.virtualWrite(V15, ledValue);
     Blynk.virtualWrite(V16, sethum);
     Blynk.virtualWrite(V17, bridgetemp);
-    Blynk.virtualWrite(V18, adsread);
-    if (adsread > 900) {
+    Blynk.virtualWrite(V18, adsmax);
+    if (adsmax > 900) {
+      ledValue2 = 255;
       Blynk.virtualWrite(V19, true);
-      Blynk.virtualWrite(V20, 255);
     } else {
+      ledValue2 = 0;
       Blynk.virtualWrite(V19, false);
-      Blynk.virtualWrite(V20, 0);
       }
+      Blynk.virtualWrite(V23, ledValue2);
     Blynk.virtualWrite(V21, tempSHT);
     Blynk.virtualWrite(V22, humSHT);
+
+    VL53L0X_RangingMeasurementData_t measure;
+    lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
+    if (measure.RangeStatus != 4) {  // phase failures have incorrect data
+      Blynk.virtualWrite(V24, measure.RangeMilliMeter);  
+    } else {
+      terminal.println("Salt sensor out of range ");
+      terminal.flush();
+    }
+    
   }
 
 
 
   if (millis() - millisAvg >= 5000)  //if it's been 5 second
   {
+    adsmax = 0;
+    for (int i = 0; i < 100; i++) {
+      int adsread = ads.readADC_SingleEnded(0);
+      if (adsread > adsmax) {adsmax = adsread;}
+    }
     struct tm timeinfo;
     getLocalTime(&timeinfo);
     hours = timeinfo.tm_hour;
