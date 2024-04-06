@@ -4,7 +4,6 @@
 #include <Adafruit_I2CDevice.h>
 #include <Adafruit_I2CRegister.h>
 #include <Adafruit_SPIDevice.h>
-#include "DHT.h"
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
@@ -17,6 +16,12 @@
 #include <Adafruit_ADS1X15.h>
 #include "Adafruit_SHT4x.h"
 #include "Adafruit_VL53L0X.h"
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
+
+#define SEALEVELPRESSURE_HPA (1013.25)
+
+Adafruit_BME280 bme; // I2C
 
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 
@@ -32,8 +37,7 @@ Adafruit_ADS1015 ads;
 int adsmax;
 
 #define RELAY_PIN 14 //D5
-#define DHT_PIN 2 //D4
-DHT dht (DHT_PIN, DHT22);
+
 //const float a = 0.143024; //0.148571;
 //const float c = 10.4; //9.68571;
 const float a = -0.00361127; 
@@ -69,7 +73,7 @@ const char* password = "springchicken";
 char auth[] = "pO--Yj8ksH2fjJLMW6yW9trkHBhd9-wc";  //BLYNK
 
 AsyncWebServer server(80);
-float abshum, tempDHT, humDHT, tempSHT, humSHT;
+float abshum, tempBME, humBME, tempSHT, humSHT, presBME;
 float tempprobe = 20;
 unsigned long millisBlynk = 0;
 unsigned long millisTFT = 0;
@@ -107,24 +111,27 @@ BLYNK_WRITE(V10) {
 
 
   if (String("temps") == param.asStr()) {
-    humDHT = dht.readHumidity();
-    tempDHT = dht.readTemperature();
     abshum = (6.112 * pow(2.71828, ((17.67 * tempSHT) / (tempSHT + 243.5))) * humSHT * 2.1674) / (273.15 + tempSHT);
-    terminal.print("> Temp: ");
-    terminal.print(tempDHT);
-    terminal.print("*C, Hum: ");
-    terminal.print(humDHT);
     terminal.print("%, abshum: ");
     terminal.print(abshum);
           sht4.getEvent(&humidity, &temp);
           tempSHT = temp.temperature;
           humSHT = humidity.relative_humidity;
+    tempBME = bme.readTemperature();
+    presBME = bme.readPressure() / 100.0F;
+    humBME = bme.readHumidity();
           terminal.print(", TempSHT: ");
           terminal.print(tempSHT);
           terminal.print(", HumSHT: ");
           terminal.println(humSHT);
     terminal.print("A, raw: ");
     terminal.println(ads.readADC_SingleEnded(0));
+    terminal.print("TempBME: ");
+    terminal.print(tempBME);
+    terminal.print("HumBME: ");
+    terminal.print(humBME);
+    terminal.print("PresBME: ");
+    terminal.println(presBME);
     
   }
     if (String("range") == param.asStr()) {
@@ -168,10 +175,9 @@ int hours, mins, secs;
 void setup() {
   digitalWrite(RELAY_PIN, LOW);
   pinMode(RELAY_PIN, OUTPUT);
-  pinMode(DHT_PIN, INPUT_PULLUP);
-   dht.begin ();
    ads.setGain(GAIN_ONE);
    ads.begin();
+   bme.begin(0x76);
   bridgetemp = -20;
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
@@ -239,9 +245,7 @@ void setup() {
   }
   terminal.println("Startup complete.");
   terminal.flush();
-    humDHT = dht.readHumidity();
-    tempDHT = dht.readTemperature();
-    abshum = (6.112 * pow(2.71828, ((17.67 * tempDHT) / (tempDHT + 243.5))) * humDHT * 2.1674) / (273.15 + tempDHT);
+
 }
 
 void loop() {
@@ -253,18 +257,20 @@ void loop() {
   if (millis() - millisBlynk >= 30000)  //if it's been 30 seconds
   {
     if (hours > 11) {display.invertDisplay();} else {display.normalDisplay();}
-    humDHT = dht.readHumidity();
-    tempDHT = dht.readTemperature();
+
           sht4.getEvent(&humidity, &temp);
           tempSHT = temp.temperature;
           humSHT = humidity.relative_humidity;
         abshum = (6.112 * pow(2.71828, ((17.67 * tempSHT)/(tempSHT + 243.5))) * humSHT * 2.1674)/(273.15 + tempSHT);
     millisBlynk = millis();
-      if (tempDHT > 0) {Blynk.virtualWrite(V2, tempDHT);}
-    if (humDHT > 0) {Blynk.virtualWrite(V3, humDHT);}
-    Blynk.virtualWrite(V2, tempDHT);
-    Blynk.virtualWrite(V3, humDHT);
+    tempBME = bme.readTemperature();
+    presBME = bme.readPressure() / 100.0F;
+    humBME = bme.readHumidity();
+      if (tempBME > 0) {Blynk.virtualWrite(V2, tempBME);}
+    if (humBME > 0) {Blynk.virtualWrite(V3, humBME);}
+
     Blynk.virtualWrite(V4, abshum);
+    if (presBME > 0) {Blynk.virtualWrite(V5, presBME);}
     
 
     Blynk.virtualWrite(V14, relaystate);
@@ -325,7 +331,7 @@ void loop() {
      tempstring = String(bridgetemp) + "°C";
      humstring = String(abshum) + "g/m³";
      sethumstring = String(sethum) + "g/m³";
-     intempstring = String(tempDHT) + "°C";
+     intempstring = String(tempSHT) + "°C";
     display.drawString(128,0, tempstring);
     display.drawString(128,12, humstring);
     display.drawString(128,24, sethumstring);
