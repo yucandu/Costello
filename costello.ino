@@ -20,7 +20,7 @@
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
-#define ATMOS_PRESSURE_DIFFERENCE 0.35 //difference due to altitude between atmos pres sensor upstairs and dynamic pres sensor in furnace
+#define ATMOS_PRESSURE_DIFFERENCE 0.37 //difference due to altitude between atmos pres sensor upstairs and dynamic pres sensor in furnace, INCREASE IF BASELINE TOO LOW
 
 Adafruit_BME280 bme; // I2C
 
