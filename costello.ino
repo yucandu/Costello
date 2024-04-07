@@ -13,13 +13,14 @@
 #include <Average.h>
 #include <Wire.h>               // Only needed for Arduino 1.6.5 and earlier
 #include "SH1106Wire.h"   // legacy: #include "SH1106.h"
-#include <Adafruit_ADS1X15.h>
 #include "Adafruit_SHT4x.h"
 #include "Adafruit_VL53L0X.h"
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 
 #define SEALEVELPRESSURE_HPA (1013.25)
+
+#define ATMOS_PRESSURE_DIFFERENCE 0.35 //difference due to altitude between atmos pres sensor upstairs and dynamic pres sensor in furnace
 
 Adafruit_BME280 bme; // I2C
 
@@ -28,7 +29,6 @@ Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 Adafruit_SHT4x sht4 = Adafruit_SHT4x();
   sensors_event_t humidity, temp;
 
-Adafruit_ADS1015 ads; 
 
 
  SH1106Wire display(0x3c, SDA, SCL); 
@@ -84,11 +84,15 @@ int firstvalue = 1;
 
 WidgetTerminal terminal(V10);
 
-float bridgetemp;
+float bridgetemp, bridgepres, presdif;
 
 
 BLYNK_WRITE(V73) {
   bridgetemp = param.asFloat();
+}
+
+BLYNK_WRITE(V94) {
+  bridgepres = param.asFloat();
 }
 
 BLYNK_WRITE(V10) {
@@ -125,7 +129,7 @@ BLYNK_WRITE(V10) {
           terminal.print(", HumSHT: ");
           terminal.println(humSHT);
     terminal.print("A, raw: ");
-    terminal.println(ads.readADC_SingleEnded(0));
+    terminal.println(analogRead(A0));
     terminal.print("TempBME: ");
     terminal.print(tempBME);
     terminal.print("HumBME: ");
@@ -175,10 +179,8 @@ int hours, mins, secs;
 void setup() {
   digitalWrite(RELAY_PIN, LOW);
   pinMode(RELAY_PIN, OUTPUT);
-   ads.setGain(GAIN_ONE);
-   ads.begin();
    bme.begin(0x76);
-  bridgetemp = -20;
+  bridgetemp = -69;
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
   WiFi.setPhyMode(WIFI_PHY_MODE_11B);
@@ -271,14 +273,19 @@ void loop() {
 
     Blynk.virtualWrite(V4, abshum);
     if (presBME > 0) {Blynk.virtualWrite(V5, presBME);}
-    
+    if ((bridgepres > 0) && (presBME > 0)) {
+      presdif = bridgepres - (presBME - ATMOS_PRESSURE_DIFFERENCE);
+      Blynk.virtualWrite(V6, presdif);
+    }
 
     Blynk.virtualWrite(V14, relaystate);
     Blynk.virtualWrite(V15, ledValue);
-    Blynk.virtualWrite(V16, sethum);
-    Blynk.virtualWrite(V17, bridgetemp);
+    if (bridgetemp != -69) {
+      Blynk.virtualWrite(V16, sethum);
+      Blynk.virtualWrite(V17, bridgetemp);
+    }
     Blynk.virtualWrite(V18, adsmax);
-    if (adsmax > 900) {
+    if (adsmax > 650) {
       ledValue2 = 255;
       Blynk.virtualWrite(V19, true);
     } else {
@@ -306,7 +313,7 @@ void loop() {
   {
     adsmax = 0;
     for (int i = 0; i < 100; i++) {
-      int adsread = ads.readADC_SingleEnded(0);
+      int adsread = analogRead(A0);
       if (adsread > adsmax) {adsmax = adsread;}
     }
     struct tm timeinfo;
