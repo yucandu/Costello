@@ -163,6 +163,7 @@ BLYNK_WRITE(V10) {
     
   }
     if (String("range") == param.asStr()) {
+      switchwire1();
         VL53L0X_RangingMeasurementData_t measure;
     
       terminal.print("Reading a measurement... ");
@@ -311,6 +312,9 @@ void loop() {
   {
  
     switchwire1();
+
+    VL53L0X_RangingMeasurementData_t measure;
+    lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
     sht4.getEvent(&humidity, &temp);
     tempSHT = temp.temperature;
     humSHT = humidity.relative_humidity;
@@ -353,8 +357,6 @@ void loop() {
     Blynk.virtualWrite(V21, tempSHT);
     Blynk.virtualWrite(V22, humSHT);
 
-    VL53L0X_RangingMeasurementData_t measure;
-    lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
     if (measure.RangeStatus != 4) {  // phase failures have incorrect data
       Blynk.virtualWrite(V24, measure.RangeMilliMeter);  
     } else {
