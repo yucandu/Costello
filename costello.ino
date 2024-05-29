@@ -12,26 +12,35 @@
 #include "time.h"
 #include <Average.h>
 #include <Wire.h>               // Only needed for Arduino 1.6.5 and earlier
-#include "SH1106Wire.h"   // legacy: #include "SH1106.h"
 #include "Adafruit_SHT4x.h"
 #include "Adafruit_VL53L0X.h"
 #include <Adafruit_Sensor.h>
-#include <Adafruit_BME280.h>
+#include <Adafruit_BMP280.h>
+#include <Adafruit_AHTX0.h>
+
+
+
+Adafruit_AHTX0 aht;
+Adafruit_BMP280 bmp;
+
+#define BMP1_PIN D6
+#define BMP2_PIN D7
+
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
-#define ATMOS_PRESSURE_DIFFERENCE 0.37 //difference due to altitude between atmos pres sensor upstairs and dynamic pres sensor in furnace, INCREASE IF BASELINE TOO LOW
+#define ATMOS_PRESSURE_DIFFERENCE 0.41 //difference due to altitude between atmos pres sensor upstairs and dynamic pres sensor in furnace, INCREASE IF BASELINE TOO LOW
 
-Adafruit_BME280 bme; // I2C
+
 
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 
 Adafruit_SHT4x sht4 = Adafruit_SHT4x();
   sensors_event_t humidity, temp;
+  
 
 
 
- SH1106Wire display(0x3c, SDA, SCL); 
 
  
 int adsmax;
@@ -73,7 +82,11 @@ const char* password = "springchicken";
 char auth[] = "pO--Yj8ksH2fjJLMW6yW9trkHBhd9-wc";  //BLYNK
 
 AsyncWebServer server(80);
-float abshum, tempBME, humBME, tempSHT, humSHT, presBME;
+float abshum, tempSHT, humSHT;
+float presBMP1, presBMP2;
+sensors_event_t humAHT1, tempAHT1;
+
+sensors_event_t humAHT2, tempAHT2;
 float tempprobe = 20;
 unsigned long millisBlynk = 0;
 unsigned long millisTFT = 0;
@@ -115,27 +128,38 @@ BLYNK_WRITE(V10) {
 
 
   if (String("temps") == param.asStr()) {
+    switchwire1();
     abshum = (6.112 * pow(2.71828, ((17.67 * tempSHT) / (tempSHT + 243.5))) * humSHT * 2.1674) / (273.15 + tempSHT);
-    terminal.print("%, abshum: ");
+    terminal.print("abshum: ");
     terminal.print(abshum);
-          sht4.getEvent(&humidity, &temp);
-          tempSHT = temp.temperature;
-          humSHT = humidity.relative_humidity;
-    tempBME = bme.readTemperature();
-    presBME = bme.readPressure() / 100.0F;
-    humBME = bme.readHumidity();
-          terminal.print(", TempSHT: ");
-          terminal.print(tempSHT);
-          terminal.print(", HumSHT: ");
-          terminal.println(humSHT);
+    sht4.getEvent(&humidity, &temp);
+    tempSHT = temp.temperature;
+    humSHT = humidity.relative_humidity;
+    presBMP1 = bmp.readPressure() / 100.0F;
+    aht.getEvent(&humAHT1, &tempAHT1);
+    //Wire.end();
+    switchwire2();
+    presBMP2 = bmp.readPressure() / 100.0F;
+    aht.getEvent(&humAHT2, &tempAHT2);
+    //Wire.end();
+    terminal.print(", TempSHT: ");
+    terminal.print(tempSHT);
+    terminal.print(", HumSHT: ");
+    terminal.println(humSHT);
     terminal.print("A, raw: ");
     terminal.println(analogRead(A0));
-    terminal.print("TempBME: ");
-    terminal.print(tempBME);
-    terminal.print("HumBME: ");
-    terminal.print(humBME);
-    terminal.print("PresBME: ");
-    terminal.println(presBME);
+    terminal.print("Pres1: ");
+    terminal.print(presBMP1);
+    terminal.print(", Pres2: ");
+    terminal.println(presBMP2);
+    terminal.print("tempAHT1: ");
+    terminal.print(tempAHT1.temperature);
+    terminal.print(", tempAHT2: ");
+    terminal.println(tempAHT2.temperature);
+    terminal.print("humAHT1: ");
+    terminal.print(humAHT1.relative_humidity);
+    terminal.print(", humAHT2: ");
+    terminal.println(humAHT2.relative_humidity);
     
   }
     if (String("range") == param.asStr()) {
@@ -175,30 +199,39 @@ void printLocalTime() {
 char time_value[20];
 int hours, mins, secs;
 
+void switchwire1() {
+  Wire.begin(4,5);
+  sht4.begin();
+  sht4.setPrecision(SHT4X_HIGH_PRECISION);
+  sht4.setHeater(SHT4X_NO_HEATER);
+  lox.begin();
+  bmp.begin(0x77);
+  aht.begin();
+  delay(200);
+}
+
+void switchwire2() {
+  Wire.begin(BMP2_PIN, BMP1_PIN);
+  bmp.begin(0x77);
+  aht.begin();
+  delay(200);
+}
+
 
 void setup() {
+    pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, LOW);
-  pinMode(RELAY_PIN, OUTPUT);
-   bme.begin(0x76);
   bridgetemp = -69;
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
   WiFi.setPhyMode(WIFI_PHY_MODE_11B);
   WiFi.begin("mikesnet", "springchicken");
   delay(10);
-  display.init();
-  display.setFont(ArialMT_Plain_10);
-  display.setTextAlignment(TEXT_ALIGN_LEFT);
-  display.flipScreenVertically();
-  display.clear();
-  display.setBrightness(100);
-  display.drawString(0,0, "Connecting...");
-  display.display();
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
 
   }
-
+  Wire.begin(4,5);
   delay(500);
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   delay(500);
@@ -209,15 +242,15 @@ void setup() {
   Serial.println(WiFi.localIP());
   Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
   Blynk.connect();
-
+  //Wire.begin(4,5); 
   terminal.println("Adafruit SHT4x test");
   if (! sht4.begin()) {
     terminal.println("Couldn't find SHT4x");
-    while (1) delay(1);
   }
   terminal.println("Found SHT4x sensor");
   terminal.print("terminal number 0x");
   terminal.println(sht4.readSerial(), HEX);
+  terminal.flush();
   sht4.setPrecision(SHT4X_HIGH_PRECISION);
   sht4.setHeater(SHT4X_NO_HEATER);
 
@@ -245,9 +278,27 @@ void setup() {
   else {
     terminal.println("Succeeded to boot VL53L0X");
   }
-  terminal.println("Startup complete.");
   terminal.flush();
-
+  if (!bmp.begin(0x77)) { // Use the I2C address of the BMP280
+    terminal.println("Could not find a valid BMP280 sensor on hardware I2C, check wiring!");
+  }
+  terminal.flush();
+    if (! aht.begin()) {
+    terminal.println("Could not find AHT? Check wiring");
+  }
+  //Wire.end();
+  Wire.begin(BMP2_PIN, BMP1_PIN);
+  if (!bmp.begin(0x77)) { // Use the I2C address of the BMP280
+    terminal.println("Could not find a valid BMP280 sensor on D7/D6  I2C, check wiring!");
+  }
+  terminal.flush();
+    if (! aht.begin()) {
+    terminal.println("Could not find AHT? Check wiring");
+  }
+  terminal.flush();
+  //Wire.end();
+  Wire.begin(4,5);
+  delay(200);
 }
 
 void loop() {
@@ -258,25 +309,31 @@ void loop() {
 
   if (millis() - millisBlynk >= 30000)  //if it's been 30 seconds
   {
-    if (hours > 11) {display.invertDisplay();} else {display.normalDisplay();}
-
-          sht4.getEvent(&humidity, &temp);
-          tempSHT = temp.temperature;
-          humSHT = humidity.relative_humidity;
-        abshum = (6.112 * pow(2.71828, ((17.67 * tempSHT)/(tempSHT + 243.5))) * humSHT * 2.1674)/(273.15 + tempSHT);
+ 
+    switchwire1();
+    sht4.getEvent(&humidity, &temp);
+    tempSHT = temp.temperature;
+    humSHT = humidity.relative_humidity;
+    abshum = (6.112 * pow(2.71828, ((17.67 * tempSHT)/(tempSHT + 243.5))) * humSHT * 2.1674)/(273.15 + tempSHT);
     millisBlynk = millis();
-    tempBME = bme.readTemperature();
-    presBME = bme.readPressure() / 100.0F;
-    humBME = bme.readHumidity();
-      if (tempBME > 0) {Blynk.virtualWrite(V2, tempBME);}
-    if (humBME > 0) {Blynk.virtualWrite(V3, humBME);}
+    presBMP1 = bmp.readPressure() / 100.0F;
+    aht.getEvent(&humAHT1, &tempAHT1);
+    switchwire2();
+    presBMP2 = bmp.readPressure() / 100.0F;
+    aht.getEvent(&humAHT2, &tempAHT2);
+    //Wire.end();
+
+    Blynk.virtualWrite(V2, tempAHT1.temperature);
+    Blynk.virtualWrite(V3, humAHT1.relative_humidity);
 
     Blynk.virtualWrite(V4, abshum);
-    if (presBME > 0) {Blynk.virtualWrite(V5, presBME);}
-    if ((bridgepres > 0) && (presBME > 0)) {
-      presdif = bridgepres - (presBME - ATMOS_PRESSURE_DIFFERENCE);
+    if (presBMP1 > 0) {Blynk.virtualWrite(V5, presBMP1);}
+    if ((presBMP1 > 0) && (presBMP2 > 0)) {
+      presdif = presBMP2 - presBMP1;
       Blynk.virtualWrite(V6, presdif);
     }
+    Blynk.virtualWrite(V7, tempAHT2.temperature);
+    Blynk.virtualWrite(V8, humAHT2.relative_humidity);
 
     Blynk.virtualWrite(V14, relaystate);
     Blynk.virtualWrite(V15, ledValue);
@@ -322,28 +379,7 @@ void loop() {
     mins = timeinfo.tm_min;
     secs = timeinfo.tm_sec;
     millisAvg = millis();
-    String tempstring = "OUT TEMP: ";
-    String humstring = "IN HUM: "; 
-    String sethumstring = "SET HUM: ";
-    String relaystring = "RELAY:";
-    String intempstring = "IN TEMP: "; 
-    display.clear();
-    display.setTextAlignment(TEXT_ALIGN_LEFT);
-    display.drawString(0,0, tempstring);
-    display.drawString(0,12, humstring);
-    display.drawString(0,24, sethumstring);
-    display.drawString(0,36, relaystring);
-    display.drawString(0,48, intempstring);
-    display.setTextAlignment(TEXT_ALIGN_RIGHT);
-     tempstring = String(bridgetemp) + "°C";
-     humstring = String(abshum) + "g/m³";
-     sethumstring = String(sethum) + "g/m³";
-     intempstring = String(tempSHT) + "°C";
-    display.drawString(128,0, tempstring);
-    display.drawString(128,12, humstring);
-    display.drawString(128,24, sethumstring);
-    if (relaystate) {String relaystring = "[ON]"; display.drawString(128,36, relaystring);} else {String relaystring = "[off]"; display.drawString(128,36, relaystring);}
-    display.drawString(128,48, intempstring);
+    
     sethum = ((a*bridgetemp)*(a*bridgetemp)) + (b * bridgetemp) + c;
     if ((abshum < sethum) && (abshum > 0)) {
       if (!relaystate) {digitalWrite(RELAY_PIN, HIGH);}
@@ -356,5 +392,5 @@ void loop() {
       ledValue = 0;
     }
   }
-display.display();
+
 }
