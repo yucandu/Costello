@@ -16,7 +16,7 @@ sensors_event_t humidity, temp;
 
 float abshum, tempSHT, humSHT;
 long distance;
-
+bool buttonstart = false;
 const char* ssid = "mikesnet";
 const char* password = "springchicken";
 
@@ -36,10 +36,43 @@ WidgetTerminal terminal(V10);
     static uint32_t __every__##interval = millis(); \
     if (millis() - __every__##interval >= interval && (__every__##interval = millis()))
 
+void goToSleep(int sleeptimeSecs) {
+      Wire.end();
+      pinMode(SS, INPUT_PULLUP );
+      pinMode(6, INPUT_PULLUP );
+      pinMode(4, INPUT_PULLUP );
+      pinMode(8, INPUT_PULLUP );
+      pinMode(9, INPUT_PULLUP );
+      pinMode(1, INPUT_PULLUP );
+      pinMode(2, INPUT_PULLUP );
+      pinMode(3, INPUT_PULLUP );
+      pinMode(0, INPUT_PULLUP );
+      pinMode(5, INPUT_PULLUP );
+      esp_sleep_enable_timer_wakeup(sleeptimeSecs * 1000000ULL);
+      delay(1);
+      esp_deep_sleep_start();
+      delay(1000);
+}
+
+BLYNK_WRITE(V11)
+{
+  if (param.asInt() == 1) {buttonstart = true;}
+  if (param.asInt() == 0) {buttonstart = false;}
+}
+
+BLYNK_CONNECTED() {
+  Blynk.syncVirtual(V11);
+}
+
+
 BLYNK_WRITE(V10) {
   if (String("help") == param.asStr()) {
     terminal.println("==List of available commands:==");
     terminal.println("wifi");
+    terminal.println("temps");
+    terminal.println("range");
+    terminal.println("blink");
+    terminal.println("reset");
     terminal.println("==End of list.==");
   }
   if (String("wifi") == param.asStr()) {
@@ -76,6 +109,15 @@ BLYNK_WRITE(V10) {
       terminal.println(" out of range ");
       }
    }
+  if (String("blink") == param.asStr()) {
+    blinkLED();
+  }
+    if (String("reset") == param.asStr()) {
+    terminal.println("Restarting...");
+    terminal.flush();
+    Blynk.run();
+    ESP.restart();
+  }
     terminal.flush();
 }
 
@@ -94,6 +136,15 @@ void blinkLED(){
 }
 
 void setup(void) {
+  
+  sht4.begin();
+  sht4.setPrecision(SHT4X_HIGH_PRECISION);
+  sht4.setHeater(SHT4X_NO_HEATER);
+  delay(100);
+  sht4.getEvent(&humidity, &temp);
+      tempSHT = temp.temperature;
+      humSHT = humidity.relative_humidity;
+      abshum = (6.112 * pow(2.71828, ((17.67 * tempSHT)/(tempSHT + 243.5))) * humSHT * 2.1674)/(273.15 + tempSHT);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   pinMode(LED_PIN, OUTPUT);
@@ -107,48 +158,62 @@ void setup(void) {
     delay(250);
   }
   digitalWrite(LED_PIN, LOW);
-
-
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/plain", "Hi! I am ESP32.");
-  });
-
-  AsyncElegantOTA.begin(&server);    // Start ElegantOTA
-  server.begin();
-  Serial.println("HTTP server started");
-  delay(250);
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
   Blynk.connect();
-  delay(250);
-  struct tm timeinfo;
-  getLocalTime(&timeinfo);
-  hours = timeinfo.tm_hour;
-  mins = timeinfo.tm_min;
-  secs = timeinfo.tm_sec;
-  terminal.println("***Costello 2.0 STARTED***");
-  terminal.print("Connected to ");
-  terminal.println(ssid);
-  terminal.print("IP address: ");
-  terminal.println(WiFi.localIP());
-  printLocalTime();
-  terminal.println("Adafruit SHT4x test");
-  if (! sht4.begin()) {
-    terminal.println("Couldn't find SHT4x");
+    while ((!Blynk.connected()) && (millis() < 15000)){delay(250);}
+  if (WiFi.status() == WL_CONNECTED) {Blynk.run();}
+
+
+    if (WiFi.status() == WL_CONNECTED) {Blynk.run();}
+    Blynk.virtualWrite(V21, tempSHT);
+    if (WiFi.status() == WL_CONNECTED) {Blynk.run();}
+    Blynk.virtualWrite(V22, humSHT);
+    if (WiFi.status() == WL_CONNECTED) {Blynk.run();}
+    VL53L0X_RangingMeasurementData_t measure;
+    lox.begin();
+    lox.rangingTest(&measure, false);
+    
+    if (measure.RangeStatus != 4) {  // phase failures have incorrect data
+      distance = measure.RangeMilliMeter;
+      Blynk.virtualWrite(V24, distance);  
+      if (WiFi.status() == WL_CONNECTED) {Blynk.run();}
+      Blynk.virtualWrite(V24, distance);  
+      if (WiFi.status() == WL_CONNECTED) {Blynk.run();}
+    } else {
+      terminal.println("Salt sensor out of range ");
+      terminal.flush();
+    }
+
+if (buttonstart) {
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+      request->send(200, "text/plain", "Hi! I am ESP32.");
+    });
+
+    AsyncElegantOTA.begin(&server);    // Start ElegantOTA
+    server.begin();
+    Serial.println("HTTP server started");
+    delay(250);
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    delay(250);
+    struct tm timeinfo;
+    getLocalTime(&timeinfo);
+    hours = timeinfo.tm_hour;
+    mins = timeinfo.tm_min;
+    secs = timeinfo.tm_sec;
+    terminal.println("***Costello 2.2 STARTED***");
+    terminal.print("Connected to ");
+    terminal.println(ssid);
+    terminal.print("IP address: ");
+    terminal.println(WiFi.localIP());
+    printLocalTime();
+    terminal.flush();
+    if (WiFi.status() == WL_CONNECTED) {Blynk.run();}
   }
-  terminal.println("Found SHT4x sensor");
-  terminal.print("terminal number 0x");
-  terminal.println(sht4.readSerial(), HEX);
-  sht4.setPrecision(SHT4X_HIGH_PRECISION);
-  sht4.setHeater(SHT4X_NO_HEATER);
-    terminal.println("Adafruit VL53L0X test");
-  if (!lox.begin()) {
-    terminal.println("Failed to boot VL53L0X");
+  else   {
+    pinMode(LED_PIN, INPUT);
+    goToSleep(300);
+
   }
-  else {
-    terminal.println("Succeeded to boot VL53L0X");
-  }
-  terminal.flush();
 }
 
 void loop() {
