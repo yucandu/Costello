@@ -1,15 +1,20 @@
 #include <Arduino.h>
-#include <BlynkSimpleEsp32.h>
-#include <WiFi.h>
-#include <AsyncTCP.h>
+#include <BlynkSimpleEsp8266.h>
+#include <ESP8266WiFi.h>
+
+#include <ESPAsyncWebServer.h>
+#include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
 #include "time.h"
 #include "Adafruit_SHT4x.h"
 #include "Adafruit_VL53L0X.h"
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
+#include <Adafruit_AHTX0.h>
 
-Adafruit_SHT4x sht4 = Adafruit_SHT4x();
+Adafruit_AHTX0 aht;
+
+//Adafruit_SHT4x sht4 = Adafruit_SHT4x();
 sensors_event_t humidity, temp;
 
 #define LED_PIN 10
@@ -37,20 +42,7 @@ WidgetTerminal terminal(V10);
     if (millis() - __every__##interval >= interval && (__every__##interval = millis()))
 
 void goToSleep(int sleeptimeSecs) {
-      Wire.end();
-      pinMode(SS, INPUT_PULLUP );
-      pinMode(6, INPUT_PULLUP );
-      pinMode(4, INPUT_PULLUP );
-      pinMode(8, INPUT_PULLUP );
-      pinMode(9, INPUT_PULLUP );
-      pinMode(1, INPUT_PULLUP );
-      pinMode(2, INPUT_PULLUP );
-      pinMode(3, INPUT_PULLUP );
-      pinMode(0, INPUT_PULLUP );
-      pinMode(5, INPUT_PULLUP );
-      esp_sleep_enable_timer_wakeup(sleeptimeSecs * 1000000ULL);
-      delay(1);
-      esp_deep_sleep_start();
+      ESP.deepSleep(sleeptimeSecs * 1e6);
       delay(1000);
 }
 
@@ -86,7 +78,8 @@ BLYNK_WRITE(V10) {
   }
   if (String("temps") == param.asStr()) {
 
-    sht4.getEvent(&humidity, &temp);
+    //sht4.getEvent(&humidity, &temp);
+    aht.getEvent(&humidity, &temp);
     tempSHT = temp.temperature;
     humSHT = humidity.relative_humidity;
     abshum = (6.112 * pow(2.71828, ((17.67 * tempSHT) / (tempSHT + 243.5))) * humSHT * 2.1674) / (273.15 + tempSHT);
@@ -136,17 +129,19 @@ void blinkLED(){
 }
 
 void setup(void) {
-  
-  sht4.begin();
+  aht.begin();
+  /*sht4.begin();
   sht4.setPrecision(SHT4X_HIGH_PRECISION);
   sht4.setHeater(SHT4X_NO_HEATER);
-  delay(100);
-  sht4.getEvent(&humidity, &temp);
+  delay(10);
+  sht4.getEvent(&humidity, &temp);*/
+  aht.getEvent(&humidity, &temp);
       tempSHT = temp.temperature;
       humSHT = humidity.relative_humidity;
       abshum = (6.112 * pow(2.71828, ((17.67 * tempSHT)/(tempSHT + 243.5))) * humSHT * 2.1674)/(273.15 + tempSHT);
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
+  WiFi.setPhyMode(WIFI_PHY_MODE_11B);
+  WiFi.begin("mikesnet", "springchicken");
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
 
@@ -161,6 +156,8 @@ void setup(void) {
   Blynk.config(auth, IPAddress(192, 168, 50, 197), 8080);
   Blynk.connect();
     while ((!Blynk.connected()) && (millis() < 15000)){delay(250);}
+    if (WiFi.status() == WL_CONNECTED) {Blynk.run();}
+    Blynk.virtualWrite(V4, abshum);
   if (WiFi.status() == WL_CONNECTED) {Blynk.run();}
 
 
@@ -211,7 +208,7 @@ if (buttonstart) {
   }
   else   {
     pinMode(LED_PIN, INPUT);
-    goToSleep(300);
+    goToSleep(120);
 
   }
 }
@@ -225,7 +222,8 @@ void loop() {
       every(30000){
       VL53L0X_RangingMeasurementData_t measure;
       lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
-      sht4.getEvent(&humidity, &temp);
+      //sht4.getEvent(&humidity, &temp);
+      aht.getEvent(&humidity, &temp);
       tempSHT = temp.temperature;
       humSHT = humidity.relative_humidity;
       abshum = (6.112 * pow(2.71828, ((17.67 * tempSHT)/(tempSHT + 243.5))) * humSHT * 2.1674)/(273.15 + tempSHT);
